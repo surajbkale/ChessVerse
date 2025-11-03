@@ -16,11 +16,15 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "exports": {
-    "./client": "./src/index.ts"
+  "devDependencies": {
+    "@repo/typescript-config": "workspace:*",
+    "@types/node": "^22.18.12"
   },
   "dependencies": {
-    "@prisma/client": "^6.18.0",
-    "prisma": "^6.18.0"
+    "@prisma/client": "5.12.1",
+    "prisma": "^5.12.0"
+  },
+  "exports": {
+    "./client": "./src/index.ts"
   }
 }
