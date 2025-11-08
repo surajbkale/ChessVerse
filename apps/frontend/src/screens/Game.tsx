@@ -24,11 +24,12 @@ export const USER_TIMEOUT = "user_timeout";
 export const GAME_TIME = "game_time";
 export const GAME_ENDED = "game_ended";
 export const EXIT_GAME = "exit_game";
-export enum Result {
-  WHITE_WINS = "WHITE_WINS",
-  BLACK_WINS = "BLACK_WINS",
-  DRAW = "DRAW",
-}
+export const RESULT = {
+  WHITE_WINS: "WHITE_WINS",
+  BLACK_WINS: "BLACK_WINS",
+  DRAW: "DRAW",
+} as const;
+export type Result = (typeof RESULT)[keyof typeof RESULT];
 export interface GameResult {
   result: Result;
   by: string;
@@ -95,7 +96,7 @@ export const Game = () => {
       switch (message.type) {
         case GAME_ADDED:
           setAdded(true);
-          setGameID((p) => message.gameId);
+          setGameID((_p) => message.gameId);
           break;
         case INIT_GAME:
           setBoard(chess.board());
