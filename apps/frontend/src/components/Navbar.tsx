@@ -1,6 +1,6 @@
-import { MobileSidebar } from "@/components/mobile-sidebar";
-import { Button } from "./ui/button";
-import { useNavigate } from "react-router-dom";
+import { MobileSidebar } from '@/components/mobile-sidebar';
+import { Button } from './ui/button';
+import { useNavigate } from 'react-router-dom';
 
 export default function Navbar() {
   const navigate = useNavigate();
@@ -13,9 +13,9 @@ export default function Navbar() {
 
         <div className="flex items-center gap-2">
           <Button
-            variant={"ghost"}
+            variant={'ghost'}
             onClick={() => {
-              navigate("/login");
+              navigate('/login');
             }}
           >
             Login

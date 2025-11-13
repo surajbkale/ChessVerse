@@ -1,10 +1,10 @@
-import { useNavigate } from "react-router-dom";
-import { useRef } from "react";
-import { useRecoilState } from "recoil";
-import { userAtom } from "@repo/store/userAtom";
+import { useNavigate } from 'react-router-dom';
+import { useRef } from 'react';
+import { useRecoilState } from 'recoil';
+import { userAtom } from '@repo/store/userAtom';
 
 const BACKEND_URL =
-  import.meta.env.VITE_APP_BACKEND_URL ?? "http://localhost:3000";
+  import.meta.env.VITE_APP_BACKEND_URL ?? 'http://localhost:3000';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -12,27 +12,27 @@ const Login = () => {
   const [_, setUser] = useRecoilState(userAtom);
 
   const google = () => {
-    window.open(`${BACKEND_URL}/auth/google`, "_self");
+    window.open(`${BACKEND_URL}/auth/google`, '_self');
   };
 
   const github = () => {
-    window.open(`${BACKEND_URL}/auth/github`, "_self");
+    window.open(`${BACKEND_URL}/auth/github`, '_self');
   };
 
   const loginAsGuest = async () => {
     const response = await fetch(`${BACKEND_URL}/auth/guest`, {
-      method: "POST",
+      method: 'POST',
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
-      credentials: "include",
+      credentials: 'include',
       body: JSON.stringify({
-        name: (guestName.current && guestName.current.value) || "",
+        name: (guestName.current && guestName.current.value) || '',
       }),
     });
     const user = await response.json();
     setUser(user);
-    navigate("/game/random");
+    navigate('/game/random');
   };
 
   return (

@@ -1,9 +1,9 @@
-import { useEffect } from "react";
-import { SideNav } from "@/components/side-nav";
-import { UpperNavItems, LowerNavItems } from "@/components/constants/side-nav";
+import { useEffect } from 'react';
+import { SideNav } from '@/components/side-nav';
+import { UpperNavItems, LowerNavItems } from '@/components/constants/side-nav';
 
-import { cn } from "@/lib/utils";
-import { useSidebar } from "@/hooks/useSidebar";
+import { cn } from '@/lib/utils';
+import { useSidebar } from '@/hooks/useSidebar';
 interface SidebarProps {
   className?: string;
 }
@@ -26,10 +26,10 @@ export default function Sidebar({ className }: SidebarProps) {
     };
 
     handleResize();
-    window.addEventListener("resize", handleResize);
+    window.addEventListener('resize', handleResize);
 
     return () => {
-      window.removeEventListener("resize", handleResize);
+      window.removeEventListener('resize', handleResize);
     };
   }, [isOpen, toggle]);
   return (
@@ -41,11 +41,7 @@ export default function Sidebar({ className }: SidebarProps) {
     >
       <div className="flex flex-col h-full justify-between">
         <div className="flex flex-col justify-start">
-          {isOpen && (
-            <span className="text-center text-2xl font-bold tracking-tighter ">
-              100xchess
-            </span>
-          )}
+          {isOpen && <span className="text-center text-2xl font-bold tracking-tighter ">ChessVerse</span>}
 
           <SideNav
             className="opacity-0 transition-all duration-300 group-hover:z-50  group-hover:rounded group-hover:bg-black p-1 group-hover:opacity-100"

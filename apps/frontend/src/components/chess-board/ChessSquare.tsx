@@ -1,4 +1,4 @@
-import type { Color, PieceSymbol, Square } from "chess.js";
+import { Color, PieceSymbol, Square } from 'chess.js';
 
 const ChessSquare = ({
   square,
@@ -14,7 +14,7 @@ const ChessSquare = ({
       {square ? (
         <img
           className="w-[4.25rem]"
-          src={`/${square?.color === "b" ? `b${square.type}` : `w${square.type}`}.png`}
+          src={`/${square?.color === 'b' ? `b${square.type}` : `w${square.type}`}.png`}
         />
       ) : null}
     </div>

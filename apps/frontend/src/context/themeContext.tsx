@@ -3,9 +3,9 @@ import { createContext, useEffect, useState } from "react";
 export type THEME = "default" | "bubblegum";
 
 export type THEME_CONTEXT = {
-  theme: THEME;
-  updateTheme: (theme: THEME) => void;
-};
+  theme: THEME,
+  updateTheme: (theme: THEME) => void
+}
 
 const AVAILABLE_THEMES: THEME[] = ["default", "bubblegum"];
 
@@ -23,20 +23,19 @@ export function ThemesProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const currentTheme = localStorage.getItem("theme") as THEME | null;
 
-    if (currentTheme && AVAILABLE_THEMES.includes(currentTheme)) {
+    if(currentTheme && AVAILABLE_THEMES.includes(currentTheme)) {
       setTheme(currentTheme);
       document.querySelector("html")?.setAttribute("data-theme", currentTheme);
     }
   }, []);
 
   return (
-    <ThemeContext.Provider
-      value={{
-        theme,
-        updateTheme,
-      }}
-    >
+    <ThemeContext.Provider value={{
+      theme,
+      updateTheme
+    }}>
       {children}
     </ThemeContext.Provider>
-  );
+  )
 }
+

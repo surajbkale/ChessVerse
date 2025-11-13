@@ -1,9 +1,9 @@
-import jwt from "jsonwebtoken";
-import { User } from "../SocketManager";
-import { Player } from "../Game";
-import { WebSocket } from "ws";
+import jwt from 'jsonwebtoken';
+import { User } from '../SocketManager';
+// import { Player } from '../Game';
+import { WebSocket } from 'ws';
 
-const JWT_SECRET = process.env.JWT_SECRET || "your_secret_key";
+const JWT_SECRET = process.env.JWT_SECRET || 'your_secret_key';
 
 export interface userJwtClaims {
   userId: string;

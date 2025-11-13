@@ -2,10 +2,10 @@ import {
   isBoardFlippedAtom,
   movesAtom,
   userSelectedMoveIndexAtom,
-} from "@repo/store/chessBoard";
-import { Move } from "chess.js";
-import { useEffect, useRef } from "react";
-import { useRecoilState, useRecoilValue, useSetRecoilState } from "recoil";
+} from '@repo/store/chessBoard';
+import { Move } from 'chess.js';
+import { useEffect, useRef } from 'react';
+import { useRecoilState, useRecoilValue, useSetRecoilState } from 'recoil';
 import {
   HandshakeIcon,
   FlagIcon,
@@ -14,11 +14,11 @@ import {
   ChevronLeft,
   ChevronRight,
   RefreshCw,
-} from "lucide-react";
+} from 'lucide-react';
 
 const MovesTable = () => {
   const [userSelectedMoveIndex, setUserSelectedMoveIndex] = useRecoilState(
-    userSelectedMoveIndexAtom
+    userSelectedMoveIndexAtom,
   );
   const setIsFlipped = useSetRecoilState(isBoardFlippedAtom);
   const moves = useRecoilValue(movesAtom);
@@ -34,22 +34,21 @@ const MovesTable = () => {
     if (movesTableRef && movesTableRef.current) {
       movesTableRef.current.scrollTo({
         top: movesTableRef.current.scrollHeight,
-        behavior: "smooth",
+        behavior: 'smooth',
       });
     }
   }, [moves]);
-
   return (
-    <div className="text=[#C3C3C0] relative w-full">
+    <div className="text-[#C3C3C0] relative w-full ">
       <div
-        className="text-sm-h-[45vh] max-h=[45vh] overflow-y-auto"
+        className="text-sm h-[45vh] max-h-[45vh] overflow-y-auto"
         ref={movesTableRef}
       >
         {movesArray.map((movePairs, index) => {
           return (
             <div
               key={index}
-              className={`w-full py-px font-bold items-stretch ${index % 2 !== 0 ? "bg-[#2B2927]" : ""}`}
+              className={`w-full py-px px-4 font-bold items-stretch ${index % 2 !== 0 ? 'bg-[#2B2927]' : ''}`}
             >
               <div className="grid grid-cols-6 gap-16 w-4/5">
                 <span className="text-[#C3C3C0] px-2 py-1.5">{`${index + 1}.`}</span>
@@ -67,7 +66,7 @@ const MovesTable = () => {
                   return (
                     <div
                       key={movePairIndex}
-                      className={`col-span-2 cursor-pointer flex items-center w-full pl-1 ${isHighlighted ? "bg-[#484644] rounded border-b-[#5A5858] border-b-[3px]" : ""}`}
+                      className={`col-span-2 cursor-pointer flex items-center w-full pl-1 ${isHighlighted ? 'bg-[#484644] rounded border-b-[#5A5858] border-b-[3px]' : ''}`}
                       onClick={() => {
                         setUserSelectedMoveIndex(index * 2 + movePairIndex);
                       }}
@@ -81,7 +80,6 @@ const MovesTable = () => {
           );
         })}
       </div>
-
       {moves.length ? (
         <div className="w-full p-2 bg-[#20211D] flex items-center justify-between">
           <div className="flex gap-4">
@@ -109,7 +107,7 @@ const MovesTable = () => {
             <button
               onClick={() => {
                 setUserSelectedMoveIndex((prev) =>
-                  prev !== null ? prev - 1 : moves.length - 2
+                  prev !== null ? prev - 1 : moves.length - 2,
                 );
               }}
               disabled={userSelectedMoveIndex === 0}
@@ -124,7 +122,7 @@ const MovesTable = () => {
                     ? prev + 1 >= moves.length - 1
                       ? moves.length - 1
                       : prev + 1
-                    : null
+                    : null,
                 );
               }}
               disabled={userSelectedMoveIndex === null}

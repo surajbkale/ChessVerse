@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "db:generate": "prisma generate",
+    "db:generate":"prisma generate",
     "db:push": "prisma db push --skip-generate",
     "test": "echo \"Error: no test specified\" && exit 1",
     "db:dev": "npx prisma migrate dev && npx prisma generate",
@@ -16,15 +16,11 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "devDependencies": {
-    "@repo/typescript-config": "workspace:*",
-    "@types/node": "^22.18.12"
-  },
   "dependencies": {
     "@prisma/client": "5.12.1",
     "prisma": "^5.12.0"
   },
   "exports": {
-    "./prisma": "./src/index.ts"
+    "./client": "./src/index.ts"
   }
 }

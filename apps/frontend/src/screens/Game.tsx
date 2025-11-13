@@ -1,35 +1,34 @@
 /* eslint-disable no-case-declarations */
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { useEffect, useRef, useState } from "react";
-import MoveSound from "/move.wav";
-import { Button } from "../components/Button";
-import { ChessBoard, isPromoting } from "../components/ChessBoard";
-import { useSocket } from "../hooks/useSocket";
-import { Chess, Move } from "chess.js";
-import { useNavigate, useParams } from "react-router-dom";
-import MovesTable from "../components/MovesTable";
-import { useUser } from "@repo/store/useUser";
-import { UserAvatar } from "../components/UserAvatar";
+import { useEffect, useRef, useState } from 'react';
+import MoveSound from '/move.wav';
+import { Button } from '../components/Button';
+import { ChessBoard, isPromoting } from '../components/ChessBoard';
+import { useSocket } from '../hooks/useSocket';
+import { Chess, Move } from 'chess.js';
+import { useNavigate, useParams } from 'react-router-dom';
+import MovesTable from '../components/MovesTable';
+import { useUser } from '@repo/store/useUser';
+import { UserAvatar } from '../components/UserAvatar';
 
 // TODO: Move together, there's code repetition here
-export const INIT_GAME = "init_game";
-export const MOVE = "move";
-export const OPPONENT_DISCONNECTED = "opponent_disconnected";
-export const GAME_OVER = "game_over";
-export const JOIN_ROOM = "join_room";
-export const GAME_JOINED = "game_joined";
-export const GAME_ALERT = "game_alert";
-export const GAME_ADDED = "game_added";
-export const USER_TIMEOUT = "user_timeout";
-export const GAME_TIME = "game_time";
-export const GAME_ENDED = "game_ended";
-export const EXIT_GAME = "exit_game";
-export const RESULT = {
-  WHITE_WINS: "WHITE_WINS",
-  BLACK_WINS: "BLACK_WINS",
-  DRAW: "DRAW",
-} as const;
-export type Result = (typeof RESULT)[keyof typeof RESULT];
+export const INIT_GAME = 'init_game';
+export const MOVE = 'move';
+export const OPPONENT_DISCONNECTED = 'opponent_disconnected';
+export const GAME_OVER = 'game_over';
+export const JOIN_ROOM = 'join_room';
+export const GAME_JOINED = 'game_joined';
+export const GAME_ALERT = 'game_alert';
+export const GAME_ADDED = 'game_added';
+export const USER_TIMEOUT = 'user_timeout';
+export const GAME_TIME = 'game_time';
+export const GAME_ENDED = 'game_ended';
+export const EXIT_GAME = 'exit_game';
+export enum Result {
+  WHITE_WINS = 'WHITE_WINS',
+  BLACK_WINS = 'BLACK_WINS',
+  DRAW = 'DRAW',
+}
 export interface GameResult {
   result: Result;
   by: string;
@@ -42,13 +41,13 @@ export interface Player {
   name: string;
   isGuest: boolean;
 }
-import { useRecoilValue, useSetRecoilState } from "recoil";
+import { useRecoilValue, useSetRecoilState } from 'recoil';
 
-import { movesAtom, userSelectedMoveIndexAtom } from "@repo/store/chessBoard";
-import GameEndModal from "@/components/GameEndModal";
-import { Waitopponent } from "@/components/ui/waitopponent";
-import { ShareGame } from "../components/ShareGame";
-import ExitGameModel from "@/components/ExitGameModel";
+import { movesAtom, userSelectedMoveIndexAtom } from '@repo/store/chessBoard';
+import GameEndModal from '@/components/GameEndModal';
+import { Waitopponent } from '@/components/ui/waitopponent';
+import { ShareGame } from '../components/ShareGame';
+import ExitGameModel from '@/components/ExitGameModel';
 
 const moveAudio = new Audio(MoveSound);
 
@@ -72,7 +71,7 @@ export const Game = () => {
   const [result, setResult] = useState<GameResult | null>(null);
   const [player1TimeConsumed, setPlayer1TimeConsumed] = useState(0);
   const [player2TimeConsumed, setPlayer2TimeConsumed] = useState(0);
-  const [gameID, setGameID] = useState("");
+  const [gameID,setGameID] = useState("");
   const setMoves = useSetRecoilState(movesAtom);
   const userSelectedMoveIndex = useRecoilValue(userSelectedMoveIndexAtom);
   const userSelectedMoveIndexRef = useRef(userSelectedMoveIndex);
@@ -83,7 +82,7 @@ export const Game = () => {
 
   useEffect(() => {
     if (!user) {
-      window.location.href = "/login";
+      window.location.href = '/login';
     }
   }, [user]);
 
@@ -96,7 +95,7 @@ export const Game = () => {
       switch (message.type) {
         case GAME_ADDED:
           setAdded(true);
-          setGameID((_p) => message.gameId);
+          setGameID((p)=>message.gameId);
           break;
         case INIT_GAME:
           setBoard(chess.board());
@@ -121,7 +120,7 @@ export const Game = () => {
               chess.move({
                 from: move.from,
                 to: move.to,
-                promotion: "q",
+                promotion: 'q',
               });
             } else {
               chess.move({ from: move.from, to: move.to });
@@ -129,7 +128,7 @@ export const Game = () => {
             setMoves((moves) => [...moves, move]);
             moveAudio.play();
           } catch (error) {
-            console.log("Error", error);
+            console.log('Error', error);
           }
           break;
         case GAME_OVER:
@@ -139,14 +138,14 @@ export const Game = () => {
         case GAME_ENDED:
           let wonBy;
           switch (message.payload.status) {
-            case "COMPLETED":
-              wonBy = message.payload.result !== "DRAW" ? "CheckMate" : "Draw";
+            case 'COMPLETED':
+              wonBy = message.payload.result !== 'DRAW' ? 'CheckMate' : 'Draw';
               break;
-            case "PLAYER_EXIT":
-              wonBy = "Player Exit";
+            case 'PLAYER_EXIT':
+              wonBy = 'Player Exit';
               break;
             default:
-              wonBy = "Timeout";
+              wonBy = 'Timeout';
           }
           setResult({
             result: message.payload.result,
@@ -174,7 +173,7 @@ export const Game = () => {
 
           message.payload.moves.map((x: Move) => {
             if (isPromoting(chess, x.from, x.to)) {
-              chess.move({ ...x, promotion: "q" });
+              chess.move({ ...x, promotion: 'q' });
             } else {
               chess.move(x);
             }
@@ -193,14 +192,14 @@ export const Game = () => {
       }
     };
 
-    if (gameId !== "random") {
+    if (gameId !== 'random') {
       socket.send(
         JSON.stringify({
           type: JOIN_ROOM,
           payload: {
             gameId,
           },
-        })
+        }),
       );
     }
   }, [chess, socket]);
@@ -208,7 +207,7 @@ export const Game = () => {
   useEffect(() => {
     if (started) {
       const interval = setInterval(() => {
-        if (chess.turn() === "w") {
+        if (chess.turn() === 'w') {
           setPlayer1TimeConsumed((p) => p + 100);
         } else {
           setPlayer2TimeConsumed((p) => p + 100);
@@ -225,8 +224,8 @@ export const Game = () => {
 
     return (
       <div className="text-white">
-        Time Left: {minutes < 10 ? "0" : ""}
-        {minutes}:{remainingSeconds < 10 ? "0" : ""}
+        Time Left: {minutes < 10 ? '0' : ''}
+        {minutes}:{remainingSeconds < 10 ? '0' : ''}
         {remainingSeconds}
       </div>
     );
@@ -239,10 +238,10 @@ export const Game = () => {
         payload: {
           gameId,
         },
-      })
+      }),
     );
     setMoves([]);
-    navigate("/");
+    navigate('/');
   };
 
   if (!socket) return <div>Connecting...</div>;
@@ -258,9 +257,9 @@ export const Game = () => {
       )}
       {started && (
         <div className="justify-center flex pt-4 text-white">
-          {(user.id === gameMetadata?.blackPlayer?.id ? "b" : "w") ===
+          {(user.id === gameMetadata?.blackPlayer?.id ? 'b' : 'w') ===
           chess.turn()
-            ? "Your turn"
+            ? 'Your turn'
             : "Opponent's turn"}
         </div>
       )}
@@ -277,7 +276,7 @@ export const Game = () => {
                         {getTimer(
                           user.id === gameMetadata?.whitePlayer?.id
                             ? player2TimeConsumed
-                            : player1TimeConsumed
+                            : player1TimeConsumed,
                         )}
                       </div>
                     </div>
@@ -286,9 +285,9 @@ export const Game = () => {
                     <div className={`w-full flex justify-center text-white`}>
                       <ChessBoard
                         started={started}
-                        gameId={gameId ?? ""}
+                        gameId={gameId ?? ''}
                         myColor={
-                          user.id === gameMetadata?.blackPlayer?.id ? "b" : "w"
+                          user.id === gameMetadata?.blackPlayer?.id ? 'b' : 'w'
                         }
                         chess={chess}
                         setBoard={setBoard}
@@ -303,7 +302,7 @@ export const Game = () => {
                       {getTimer(
                         user.id === gameMetadata?.blackPlayer?.id
                           ? player2TimeConsumed
-                          : player1TimeConsumed
+                          : player1TimeConsumed,
                       )}
                     </div>
                   )}
@@ -314,20 +313,18 @@ export const Game = () => {
               {!started ? (
                 <div className="pt-8 flex justify-center w-full">
                   {added ? (
-                    <div className="flex flex-col items-center space-y-4 justify-center">
-                      <div className="text-white">
-                        <Waitopponent />
-                      </div>
-                      <ShareGame gameId={gameID} />
+                    <div className='flex flex-col items-center space-y-4 justify-center'>
+                      <div className="text-white"><Waitopponent/></div>
+                      <ShareGame gameId={gameID}/>
                     </div>
                   ) : (
-                    gameId === "random" && (
+                    gameId === 'random' && (
                       <Button
                         onClick={() => {
                           socket.send(
                             JSON.stringify({
                               type: INIT_GAME,
-                            })
+                            }),
                           );
                         }}
                       >
@@ -351,3 +348,4 @@ export const Game = () => {
     </div>
   );
 };
+

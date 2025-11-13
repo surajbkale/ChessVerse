@@ -8,17 +8,10 @@
     "./userAtom": "./src/atoms/user.ts",
     "./chessBoard": "./src/atoms/chessBoard.ts"
   },
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "devDependencies": {
-    "@repo/typescript-config": "workspace:*"
-  },
   "dependencies": {
-    "chess.js": "^1.4.0",
     "recoil": "^0.7.7"
   }
 }

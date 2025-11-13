@@ -1,6 +1,6 @@
-import { randomUUID } from "crypto";
-import { WebSocket } from "ws";
-import { userJwtClaims } from "./auth";
+import { randomUUID } from 'crypto';
+import { WebSocket } from 'ws';
+import { userJwtClaims } from './auth';
 
 export class User {
   public socket: WebSocket;
@@ -21,11 +21,11 @@ export class User {
 class SocketManager {
   private static instance: SocketManager;
   private interestedSockets: Map<string, User[]>;
-  private userRoomMapping: Map<string, string>;
+  private userRoomMappping: Map<string, string>;
 
   private constructor() {
     this.interestedSockets = new Map<string, User[]>();
-    this.userRoomMapping = new Map<string, string>();
+    this.userRoomMappping = new Map<string, string>();
   }
 
   static getInstance() {
@@ -42,13 +42,13 @@ class SocketManager {
       ...(this.interestedSockets.get(roomId) || []),
       user,
     ]);
-    this.userRoomMapping.set(user.userId, roomId);
+    this.userRoomMappping.set(user.userId, roomId);
   }
 
   broadcast(roomId: string, message: string) {
     const users = this.interestedSockets.get(roomId);
     if (!users) {
-      console.error("No users in room");
+      console.error('No users in room?');
       return;
     }
 
@@ -58,19 +58,24 @@ class SocketManager {
   }
 
   removeUser(user: User) {
-    const roomId = this.userRoomMapping.get(user.userId);
+    const roomId = this.userRoomMappping.get(user.userId);
     if (!roomId) {
-      console.error("user was not interested in any room");
+      console.error('User was not interested in any room?');
       return;
     }
-    const room = this.interestedSockets.get(roomId) || [];
-    const remainingUsers = room.filter((u) => u.userId !== user.userId);
-    this.interestedSockets.set(roomId, remainingUsers);
+    const room = this.interestedSockets.get(roomId) || []
+    const remainingUsers = room.filter(u =>
+      u.userId !== user.userId
+    )
+    this.interestedSockets.set(
+      roomId,
+      remainingUsers
+    );
     if (this.interestedSockets.get(roomId)?.length === 0) {
       this.interestedSockets.delete(roomId);
     }
-    this.userRoomMapping.delete(user.userId);
+    this.userRoomMappping.delete(user.userId);
   }
 }
 
-export const socketManager = SocketManager.getInstance();
+export const socketManager = SocketManager.getInstance()
