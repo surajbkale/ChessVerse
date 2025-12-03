@@ -21,6 +21,8 @@ RUN npm run build
 FROM node:18-alpine AS runtime
 WORKDIR /app
 
+RUN apk add --no-cache openssl
+
 ENV NODE_ENV=production
 
 # Copy built artifacts and node_modules

@@ -19,6 +19,8 @@ RUN npx esbuild apps/ws/src/index.ts --bundle --platform=node --outfile=apps/ws/
 FROM node:18-alpine AS runtime
 WORKDIR /app
 
+RUN apk add --no-cache openssl
+
 ENV NODE_ENV=production
 
 COPY --from=base /app/node_modules /app/node_modules
