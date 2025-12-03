@@ -6,6 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { COOKIE_MAX_AGE } from '../consts';
 const router = Router();
 
+const BASE_URL = process.env.ALLOWED_HOSTS || 'http://localhost:5173';
 const CLIENT_URL = process.env.AUTH_REDIRECT_URL ?? 'http://localhost:5173/game/random';
 const JWT_SECRET = process.env.JWT_SECRET || 'your_secret_key';
 
@@ -94,7 +95,7 @@ router.get('/logout', (req: Request, res: Response) => {
       res.status(500).json({ error: 'Failed to log out' });
     } else {
       res.clearCookie('jwt');
-      res.redirect('http://localhost:5173/');
+      res.redirect(BASE_URL);
     }
   });
 });
