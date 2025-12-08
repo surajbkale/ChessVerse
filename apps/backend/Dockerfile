@@ -27,7 +27,7 @@ RUN yarn turbo run build --filter=backend...
 
 RUN mkdir -p apps/backend/dist
 
-RUN cp -v node_modules/.prisma/client/libquery_engine-debian-openssl-3.0.x.so.node apps/backend/dist/
+RUN cp -v node_modules/.prisma/client/libquery_engine-debian-openssl-3.0.x.so.node apps/backend/
 
 # 3. Runner
 FROM base AS runner

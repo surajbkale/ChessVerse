@@ -26,7 +26,7 @@ RUN yarn turbo run build --filter=./apps/ws...
 
 RUN mkdir -p apps/ws/dist
 
-RUN cp -v node_modules/.prisma/client/libquery_engine-debian-openssl-3.0.x.so.node apps/ws/dist/
+RUN cp -v node_modules/.prisma/client/libquery_engine-debian-openssl-3.0.x.so.node apps/ws/
 
 # 3. Runner
 FROM base AS runner
