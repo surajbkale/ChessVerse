@@ -20,6 +20,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      # 1. Build & Push Backend
       - name: Build and Push Backend
         uses: docker/build-push-action@v5
         with:
@@ -27,9 +28,11 @@ jobs:
           file: ./apps/backend/Dockerfile
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/chess-backend:latest
+          # Optimization: Cache layers to speed up future builds
           cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/chess-backend:cache
           cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/chess-backend:cache,mode=max
 
+      # 2. Build & Push WebSocket
       - name: Build and Push WS
         uses: docker/build-push-action@v5
         with:
@@ -40,6 +43,7 @@ jobs:
           cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/chess-ws:cache
           cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/chess-ws:cache,mode=max
 
+      # 3. Build & Push Frontend (With Args)
       - name: Build and Push Frontend
         uses: docker/build-push-action@v5
         with:
@@ -47,8 +51,9 @@ jobs:
           file: ./apps/frontend/Dockerfile
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/chess-frontend:latest
+          # CRITICAL: Pass the production URLs here
           build-args: |
-            VITE_APP_BACKEND_URL:/
+            VITE_APP_BACKEND_URL=/
             VITE_APP_WS_URL=wss://chessverse.lumenvault.live/ws
           cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/chess-frontend:cache
           cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/chess-frontend:cache,mode=max
@@ -62,7 +67,7 @@ jobs:
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ubuntu
-          key: ${{ secrets.EC2.KEY }}
+          key: ${{ secrets.EC2_KEY }}
           script: |
             if [ ! -d "ChessVerse" ]; then
               git clone https://github.com/surajbkale/ChessVerse.git
