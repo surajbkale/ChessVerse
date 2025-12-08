@@ -26,6 +26,8 @@ ARG VITE_APP_WS_URL
 ENV VITE_APP_BACKEND_URL=$VITE_APP_BACKEND_URL
 ENV VITE_APP_WS_URL=$VITE_APP_WS_URL
 
+RUN echo "Building Frontend with API: $VITE_APP_BACKEND_URL"
+
 RUN yarn turbo run build --filter=frontend...
 
 # Runner (Nginx)
