@@ -3,14 +3,14 @@ ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
 
-# 1. Prune
+# Prune
 FROM base AS pruner
 WORKDIR /app
 RUN npm install -g turbo
 COPY . .
 RUN turbo prune --scope=frontend --docker
 
-# 2. Builder
+# Builder
 FROM base AS builder
 WORKDIR /app
 COPY --from=pruner /app/out/json/ .
@@ -28,7 +28,7 @@ ENV VITE_APP_WS_URL=$VITE_APP_WS_URL
 
 RUN yarn turbo run build --filter=frontend...
 
-# 3. Runner (Nginx)
+# Runner (Nginx)
 FROM nginx:alpine AS runner
 # Copy custom nginx config (Created in next step)
 COPY apps/frontend/nginx.conf /etc/nginx/conf.d/default.conf

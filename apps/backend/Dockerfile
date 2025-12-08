@@ -10,7 +10,7 @@ RUN npm install -g turbo
 COPY . .
 RUN turbo prune --scope=backend --docker
 
-# 2. Installer
+# Installer
 FROM base AS installer
 WORKDIR /app
 RUN apt-get update -y && apt-get install -y openssl
@@ -29,7 +29,7 @@ RUN mkdir -p apps/backend/dist
 
 RUN cp -v node_modules/.prisma/client/libquery_engine-debian-openssl-3.0.x.so.node apps/backend/
 
-# 3. Runner
+# Runner
 FROM base AS runner
 WORKDIR /app
 RUN apt-get update -y && apt-get install -y openssl
