@@ -25,6 +25,8 @@ RUN npx prisma generate --schema=packages/db/prisma/schema.prisma
 # Build
 RUN yarn turbo run build --filter=backend...
 
+RUN mkdir -p apps/backend/dist
+
 RUN cp -v node_modules/.prisma/client/libquery_engine-debian-openssl-3.0.x.so.node apps/backend/dist/
 
 # 3. Runner
