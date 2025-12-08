@@ -24,7 +24,7 @@ RUN npx prisma generate --schema=packages/db/prisma/schema.prisma
 
 RUN yarn turbo run build --filter=./apps/ws...
 
-RUN cp node_modules/.prisma/client/libquery_engine-debian-openssl-3.0.x.so.node apps/ws/dist/ || :
+RUN cp -v node_modules/.prisma/client/libquery_engine-debian-openssl-3.0.x.so.node apps/ws/dist/
 
 # 3. Runner
 FROM base AS runner

@@ -1,9 +1,9 @@
 FROM node:20-slim AS base
-ENV PNPM="/pnpm"
+ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
 
-# Prune
+# 1. Prune
 FROM base AS pruner
 WORKDIR /app
 RUN npm install -g turbo
@@ -22,23 +22,20 @@ RUN yarn install --frozen-lockfile
 COPY --from=pruner /app/out/full/ .
 RUN npx prisma generate --schema=packages/db/prisma/schema.prisma
 
-RUN yarn turbo run build --filter=./apps/backend...
-
-RUN cp node_modules/.prisma/client/libquery_engine-debian-openssl-3.0.x.so.node apps/backend/dist/ || :
-
-
-# Build the backend
+# Build
 RUN yarn turbo run build --filter=backend...
 
+RUN cp -v node_modules/.prisma/client/libquery_engine-debian-openssl-3.0.x.so.node apps/backend/dist/
+
+# 3. Runner
 FROM base AS runner
 WORKDIR /app
-
 RUN apt-get update -y && apt-get install -y openssl
 
 RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system -uid 1001 expressjs
+RUN adduser --system --uid 1001 expressjs
 USER expressjs
 
 COPY --from=installer /app .
 
-CMD [ "node", "apps/backend/dist/index.js" ]
+CMD ["node", "apps/backend/dist/index.js"]
