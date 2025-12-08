@@ -54,7 +54,7 @@ jobs:
           # CRITICAL: Pass the production URLs here
           build-args: |
             VITE_APP_BACKEND_URL=/
-            VITE_APP_WS_URL=wss://chessverse.lumenvault.live/ws
+            VITE_APP_WS_URL=wss://chessverse.lumenvault.live/ws/
           cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/chess-frontend:cache
           cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/chess-frontend:cache,mode=max
 
