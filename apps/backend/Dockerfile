@@ -10,11 +10,9 @@ RUN npm install -g turbo
 COPY . .
 RUN turbo prune --scope=backend --docker
 
-# install dependencies
-FROM base AS  installer
+# 2. Installer
+FROM base AS installer
 WORKDIR /app
-
-# Install OpenSSL for Prisma 
 RUN apt-get update -y && apt-get install -y openssl
 
 COPY --from=pruner /app/out/json/ .
@@ -22,9 +20,12 @@ COPY --from=pruner /app/out/yarn.lock ./yarn.lock
 RUN yarn install --frozen-lockfile
 
 COPY --from=pruner /app/out/full/ .
-
-# Generate prisma client
 RUN npx prisma generate --schema=packages/db/prisma/schema.prisma
+
+RUN yarn turbo run build --filter=./apps/backend...
+
+RUN cp node_modules/.prisma/client/libquery_engine-debian-openssl-3.0.x.so.node apps/backend/dist/ || :
+
 
 # Build the backend
 RUN yarn turbo run build --filter=backend...
