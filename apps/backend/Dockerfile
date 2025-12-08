@@ -32,7 +32,7 @@ RUN yarn turbo run build --filter=backend...
 FROM base AS runner
 WORKDIR /app
 
-RUN apg-get update -y && apt-get install -y openssl
+RUN apt-get update -y && apt-get install -y openssl
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system -uid 1001 expressjs
