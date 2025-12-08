@@ -1,0 +1,20 @@
+services:
+  backend:
+    image: surajdev01/chess-backend:latest
+    restart: always
+    ports:
+      - '3000:3000'
+    env_file: .env
+
+  ws:
+    image: surajdev01/chess-ws:latest
+    restart: always
+    ports:
+      - '8080:8080'
+    env_file: .env
+
+  frontend:
+    image: surajdev01/chess-frontend:latest
+    restart: always
+    ports:
+      - '3001:80'
