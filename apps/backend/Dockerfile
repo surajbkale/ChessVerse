@@ -1,37 +1,43 @@
-# Multi-stage build for backend
-FROM node:18-alpine AS base
+FROM node:20-slim AS base
+ENV PNPM="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable
 
+# Prune
+FROM base AS pruner
+WORKDIR /app
+RUN npm install -g turbo
+COPY . .
+RUN turbo prune --scope=backend --docker
+
+# install dependencies
+FROM base AS  installer
 WORKDIR /app
 
-# Install dependencies using workspaces
-COPY package.json yarn.lock turbo.json tsconfig.json ./
-COPY packages ./packages
-COPY apps ./apps
+# Install OpenSSL for Prisma 
+RUN apt-get update -y && apt-get install -y openssl
 
-RUN corepack enable && yarn install --frozen-lockfile
+COPY --from=pruner /app/out/json/ .
+COPY --from=pruner /app/out/yarn.lock ./yarn.lock
+RUN yarn install --frozen-lockfile
 
-# Generate Prisma client for @repo/db
+COPY --from=pruner /app/out/full/ .
+
+# Generate prisma client
 RUN npx prisma generate --schema=packages/db/prisma/schema.prisma
 
-# Build backend
-WORKDIR /app/apps/backend
-RUN npm run build
+# Build the backend
+RUN yarn turbo run build --filter=backend...
 
-# Runtime image
-FROM node:18-alpine AS runtime
+FROM base AS runner
 WORKDIR /app
 
-RUN apk add --no-cache openssl
+RUN apg-get update -y && apt-get install -y openssl
 
-ENV NODE_ENV=production
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system -uid 1001 expressjs
+USER expressjs
 
-# Copy built artifacts and node_modules
-COPY --from=base /app/node_modules /app/node_modules
-COPY --from=base /app/packages /app/packages
-COPY --from=base /app/apps/backend/dist ./dist
-COPY --from=base /app/apps/backend/package.json ./package.json
+COPY --from=installer /app .
 
-EXPOSE 3000
-CMD ["node", "dist/index.js"]
-
-
+CMD [ "node", "apps/backend/dist/index.js" ]

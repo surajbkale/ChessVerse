@@ -1,26 +1,39 @@
-# Build and serve static frontend with nginx
-FROM node:18-alpine AS build
+FROM node:20-slim AS base
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable
+
+# 1. Prune
+FROM base AS pruner
 WORKDIR /app
+RUN npm install -g turbo
+COPY . .
+RUN turbo prune --scope=frontend --docker
 
-COPY package.json yarn.lock turbo.json tsconfig.json ./
-COPY packages ./packages
-COPY apps ./apps
+# 2. Builder
+FROM base AS builder
+WORKDIR /app
+COPY --from=pruner /app/out/json/ .
+COPY --from=pruner /app/out/yarn.lock ./yarn.lock
+RUN yarn install --frozen-lockfile
 
-RUN corepack enable && yarn install --frozen-lockfile
+COPY --from=pruner /app/out/full/ .
 
-WORKDIR /app/apps/frontend
-RUN npm run build
+# --- BUILD ARGUMENTS ---
+# Passed from GitHub Actions
+ARG VITE_APP_BACKEND_URL
+ARG VITE_APP_WS_URL
+ENV VITE_APP_BACKEND_URL=$VITE_APP_BACKEND_URL
+ENV VITE_APP_WS_URL=$VITE_APP_WS_URL
 
-FROM nginx:alpine AS runtime
+RUN yarn turbo run build --filter=frontend...
 
-# 1. DELETE the default Nginx config
-RUN rm /etc/nginx/conf.d/default.conf
-
-# 2. COPY your custom config
+# 3. Runner (Nginx)
+FROM nginx:alpine AS runner
+# Copy custom nginx config (Created in next step)
 COPY apps/frontend/nginx.conf /etc/nginx/conf.d/default.conf
-
-# 3. Copy the React build files
-COPY --from=build /app/apps/frontend/dist /usr/share/nginx/html
+# Copy built static files
+COPY --from=builder /app/apps/frontend/dist /usr/share/nginx/html
 
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]

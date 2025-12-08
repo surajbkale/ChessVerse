@@ -1,34 +1,37 @@
-# Multi-stage build for ws server
-FROM node:18-alpine AS base
+FROM node:20-slim AS base
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable
 
+# 1. Prune
+FROM base AS pruner
 WORKDIR /app
+RUN npm install -g turbo
+COPY . .
+RUN turbo prune --scope=ws --docker
 
-COPY package.json yarn.lock turbo.json tsconfig.json ./
-COPY packages ./packages
-COPY apps ./apps
+# 2. Installer
+FROM base AS installer
+WORKDIR /app
+RUN apt-get update -y && apt-get install -y openssl
 
-RUN corepack enable && yarn install --frozen-lockfile
+COPY --from=pruner /app/out/json/ .
+COPY --from=pruner /app/out/yarn.lock ./yarn.lock
+RUN yarn install --frozen-lockfile
 
-# Generate Prisma client for @repo/db
+COPY --from=pruner /app/out/full/ .
 RUN npx prisma generate --schema=packages/db/prisma/schema.prisma
+RUN yarn turbo run build --filter=ws...
 
-# Build ws (bundle TypeScript with esbuild)
+# 3. Runner
+FROM base AS runner
 WORKDIR /app
-RUN npx esbuild apps/ws/src/index.ts --bundle --platform=node --outfile=apps/ws/dist/index.js
+RUN apt-get update -y && apt-get install -y openssl
 
-FROM node:18-alpine AS runtime
-WORKDIR /app
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 expressjs
+USER expressjs
 
-RUN apk add --no-cache openssl
+COPY --from=installer /app .
 
-ENV NODE_ENV=production
-
-COPY --from=base /app/node_modules /app/node_modules
-COPY --from=base /app/packages /app/packages
-COPY --from=base /app/apps/ws/dist ./dist
-COPY --from=base /app/apps/ws/package.json ./package.json
-
-EXPOSE 8080
-CMD ["node", "dist/index.js"]
-
-
+CMD ["node", "apps/ws/dist/index.js"]
