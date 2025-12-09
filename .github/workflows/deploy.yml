@@ -20,15 +20,16 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # 1. Build & Push Backend
+      # Build & Push Backend
       - name: Build and Push Backend
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./apps/backend/Dockerfile
           push: true
-          tags: ${{ secrets.DOCKER_USERNAME }}/chess-backend:latest
-          # Optimization: Cache layers to speed up future builds
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/chess-backend:${{ github.sha }}
+            ${{ secrets.DOCKER_USERNAME }}/chess-backend:latest
           cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/chess-backend:cache
           cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/chess-backend:cache,mode=max
 
@@ -39,19 +40,22 @@ jobs:
           context: .
           file: ./apps/ws/Dockerfile
           push: true
-          tags: ${{ secrets.DOCKER_USERNAME }}/chess-ws:latest
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/chess-ws:${{ github.sha }}
+            ${{ secrets.DOCKER_USERNAME }}/chess-ws:latest
           cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/chess-ws:cache
           cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/chess-ws:cache,mode=max
 
-      # 3. Build & Push Frontend (With Args)
+      # Build & Push Frontend
       - name: Build and Push Frontend
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./apps/frontend/Dockerfile
           push: true
-          tags: ${{ secrets.DOCKER_USERNAME }}/chess-frontend:latest
-          # CRITICAL: Pass the production URLs here
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/chess-frontend:${{ github.sha }}
+            ${{ secrets.DOCKER_USERNAME }}/chess-frontend:latest
           build-args: |
             VITE_APP_BACKEND_URL=/
             VITE_APP_WS_URL=wss://chessverse.lumenvault.live/ws/
@@ -68,6 +72,7 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ubuntu
           key: ${{ secrets.EC2_KEY }}
+          envs: GITHUB_SHA
           script: |
             if [ ! -d "ChessVerse" ]; then
               git clone https://github.com/surajbkale/ChessVerse.git
@@ -75,8 +80,14 @@ jobs:
             cd ChessVerse
             git pull origin main
 
-            sudo docker compose -f docker-compose.prod.yml pull
+            # Export the SHA as the IMAGE_TAG variable for this session
+            export IMAGE_TAG=${{ github.sha }}
 
-            sudo docker compose -f docker-compose.prod.yml up -d --remove-orphans
+            # Pull the specific image using the variable
+            sudo -E docker compose -f docker-compose.prod.yml pull
 
+            # Start up using the variable
+            sudo -E docker compose -f docker-compose.prod.yml up -d --remove-orphans
+
+            # Clean up old images (crucial now that we are creating unique tags)
             sudo docker image prune -f
