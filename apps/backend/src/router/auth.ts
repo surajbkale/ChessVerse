@@ -4,10 +4,11 @@ import jwt from 'jsonwebtoken';
 import { db } from '../db';
 import { v4 as uuidv4 } from 'uuid';
 import { COOKIE_MAX_AGE } from '../consts';
+
 const router = Router();
 
-const BASE_URL = '';
-const CLIENT_URL = process.env.AUTH_REDIRECT_URL ?? 'http://localhost:5173/game/random';
+const CLIENT_URL = process.env.AUTH_REDIRECT_URL ?? 'https://chessverse.lumenvault.live/game/random';
+const FRONTEND_URL = process.env.FRONTEND_URL ?? 'https://chessverse.lumenvault.live';
 const JWT_SECRET = process.env.JWT_SECRET || 'your_secret_key';
 
 interface userJwtClaims {
@@ -23,7 +24,6 @@ interface UserDetails {
   isGuest?: boolean;
 }
 
-// this route is to be hit when the user wants to login as a guest
 router.post('/guest', async (req: Request, res: Response) => {
   const bodyData = req.body;
   let guestUUID = 'guest-' + uuidv4();
@@ -31,7 +31,7 @@ router.post('/guest', async (req: Request, res: Response) => {
   const user = await db.user.create({
     data: {
       username: guestUUID,
-      email: guestUUID + '@chess100x.com',
+      email: guestUUID + '@chessverse.live',
       name: bodyData.name || guestUUID,
       provider: 'GUEST',
     },
@@ -44,6 +44,7 @@ router.post('/guest', async (req: Request, res: Response) => {
     token: token,
     isGuest: true,
   };
+
   res.cookie('guest', token, { maxAge: COOKIE_MAX_AGE });
   res.json(UserDetails);
 });
@@ -51,9 +52,6 @@ router.post('/guest', async (req: Request, res: Response) => {
 router.get('/refresh', async (req: Request, res: Response) => {
   if (req.user) {
     const user = req.user as UserDetails;
-
-    // Token is issued so it can be shared b/w HTTP and ws server
-    // Todo: Make this temporary and add refresh logic here
 
     const userDb = await db.user.findFirst({
       where: {
@@ -89,13 +87,15 @@ router.get('/login/failed', (req: Request, res: Response) => {
 
 router.get('/logout', (req: Request, res: Response) => {
   res.clearCookie('guest');
+  res.clearCookie('connect.sid');
+
   req.logout((err) => {
     if (err) {
       console.error('Error logging out:', err);
       res.status(500).json({ error: 'Failed to log out' });
     } else {
       res.clearCookie('jwt');
-      res.redirect(BASE_URL);
+      res.redirect(FRONTEND_URL);
     }
   });
 });
