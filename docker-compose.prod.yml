@@ -1,20 +1,20 @@
 services:
   backend:
-    image: ${{ secrets.DOCKER_USERNAME }}/chess-backend:${IMAGE_TAG}
+    image: surajdev01/chess-backend:${IMAGE_TAG}
     restart: always
     ports:
       - '3000:3000'
     env_file: .env
 
   ws:
-    image: ${{ secrets.DOCKER_USERNAME }}/chess-ws:${IMAGE_TAG}
+    image: surajdev01/chess-ws:${IMAGE_TAG}
     restart: always
     ports:
       - '8080:8080'
     env_file: .env
 
   frontend:
-    image: ${{ secrets.DOCKER_USERNAME }}/chess-frontend:${IMAGE_TAG}
+    image: surajdev01/chess-frontend:${IMAGE_TAG}
     restart: always
     ports:
       - '3001:80'

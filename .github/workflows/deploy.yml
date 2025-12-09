@@ -72,22 +72,15 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ubuntu
           key: ${{ secrets.EC2_KEY }}
-          envs: GITHUB_SHA
           script: |
-            if [ ! -d "ChessVerse" ]; then
-              git clone https://github.com/surajbkale/ChessVerse.git
-            fi
             cd ChessVerse
             git pull origin main
 
-            # Export the SHA as the IMAGE_TAG variable for this session
-            export IMAGE_TAG=${{ github.sha }}
+            # --- FIX: Pass variable inline ---
+            # We explicitly pass the SHA as IMAGE_TAG to the command
 
-            # Pull the specific image using the variable
-            sudo -E docker compose -f docker-compose.prod.yml pull
+            sudo IMAGE_TAG=${{ github.sha }} docker compose -f docker-compose.prod.yml pull
 
-            # Start up using the variable
-            sudo -E docker compose -f docker-compose.prod.yml up -d --remove-orphans
+            sudo IMAGE_TAG=${{ github.sha }} docker compose -f docker-compose.prod.yml up -d --remove-orphans
 
-            # Clean up old images (crucial now that we are creating unique tags)
             sudo docker image prune -f
