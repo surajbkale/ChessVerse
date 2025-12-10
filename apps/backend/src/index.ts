@@ -41,6 +41,8 @@ app.use(
 app.use('/auth', authRoute);
 app.use('/v1', v1Router);
 
+console.log(app);
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}...`);
