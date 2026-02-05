@@ -15,6 +15,7 @@ A real-time multiplayer chess platform built with React, Node.js, WebSockets, an
 - **Move History**: Track and review all moves made during the game
 - **Time Controls**: 10-minute games with time tracking for each player
 
+
 ### 🎨 User Interface
 
 - **Customizable Themes**:
