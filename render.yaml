@@ -1,0 +1,56 @@
+services:
+  # ─── Backend (Express + Passport OAuth) ────────────────────────────────────
+  - type: web
+    name: chessverse-backend
+    env: docker
+    dockerfilePath: apps/backend/Dockerfile
+    dockerContext: .
+    branch: main
+    plan: starter          # free tier spins down; starter keeps it alive
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: 3000
+      - key: NODE_ENV
+        value: production
+      # ⚠️  Set the values below via the Render Dashboard (never commit secrets)
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GITHUB_CLIENT_ID
+        sync: false
+      - key: GITHUB_CLIENT_SECRET
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: COOKIE_SECRET
+        sync: false
+      - key: ALLOWED_HOSTS
+        sync: false        # e.g. https://chessverse.vercel.app
+      - key: AUTH_REDIRECT_URL
+        sync: false        # e.g. https://chessverse.vercel.app/game/random
+      - key: FRONTEND_URL
+        sync: false        # e.g. https://chessverse.vercel.app
+
+  # ─── WebSocket Service ──────────────────────────────────────────────────────
+  - type: web
+    name: chessverse-ws
+    env: docker
+    dockerfilePath: apps/ws/Dockerfile
+    dockerContext: .
+    branch: main
+    plan: starter          # WebSocket connections require always-on
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: 8080
+      - key: NODE_ENV
+        value: production
+      # ⚠️  Set the values below via the Render Dashboard
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false        # must match the backend JWT_SECRET exactly

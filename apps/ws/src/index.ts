@@ -2,8 +2,22 @@ import { WebSocketServer } from 'ws';
 import { GameManager } from './GameManager';
 import url from 'url';
 import { extractAuthUser } from './auth';
+import http from 'http';
 
-const wss = new WebSocketServer({ port: 8080 });
+const PORT = parseInt(process.env.PORT || '8080', 10);
+
+// Minimal HTTP server so Render can perform health checks
+const server = http.createServer((req, res) => {
+  if (req.url === '/health') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ status: 'ok' }));
+  } else {
+    res.writeHead(404);
+    res.end();
+  }
+});
+
+const wss = new WebSocketServer({ server });
 
 const gameManager = new GameManager();
 
@@ -18,4 +32,6 @@ wss.on('connection', function connection(ws, req) {
   });
 });
 
-console.log('done');
+server.listen(PORT, () => {
+  console.log(`WS server listening on port ${PORT}`);
+});

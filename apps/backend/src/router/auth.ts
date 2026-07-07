@@ -11,6 +11,13 @@ const CLIENT_URL = process.env.AUTH_REDIRECT_URL ?? 'https://chessverse.lumenvau
 const FRONTEND_URL = process.env.FRONTEND_URL ?? 'https://chessverse.lumenvault.live';
 const JWT_SECRET = process.env.JWT_SECRET || 'your_secret_key';
 
+const isProduction = process.env.NODE_ENV === 'production';
+const cookieOptions = {
+  maxAge: COOKIE_MAX_AGE,
+  secure: isProduction,
+  sameSite: (isProduction ? 'none' : 'lax') as 'none' | 'lax',
+};
+
 interface userJwtClaims {
   userId: string;
   name: string;
@@ -45,7 +52,7 @@ router.post('/guest', async (req: Request, res: Response) => {
     isGuest: true,
   };
 
-  res.cookie('guest', token, { maxAge: COOKIE_MAX_AGE });
+  res.cookie('guest', token, cookieOptions);
   res.json(UserDetails);
 });
 
@@ -74,7 +81,7 @@ router.get('/refresh', async (req: Request, res: Response) => {
       token: token,
       isGuest: true,
     };
-    res.cookie('guest', token, { maxAge: COOKIE_MAX_AGE });
+    res.cookie('guest', token, cookieOptions);
     res.json(User);
   } else {
     res.status(401).json({ success: false, message: 'Unauthorized' });

@@ -20,7 +20,11 @@ app.use(
     secret: process.env.COOKIE_SECRET || 'keyboard cat',
     resave: false,
     saveUninitialized: false,
-    cookie: { secure: false, maxAge: COOKIE_MAX_AGE },
+    cookie: {
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      maxAge: COOKIE_MAX_AGE,
+    },
   })
 );
 
@@ -37,6 +41,10 @@ app.use(
     credentials: true,
   })
 );
+
+app.get('/health', (_req, res) => {
+  res.status(200).json({ status: 'ok' });
+});
 
 app.use('/auth', authRoute);
 app.use('/v1', v1Router);
