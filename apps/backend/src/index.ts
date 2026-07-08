@@ -1,9 +1,11 @@
+import dotenv from 'dotenv';
+dotenv.config(); // Must run FIRST — before any module reads process.env at init time
+
 import express from 'express';
 import v1Router from './router/v1';
 import cors from 'cors';
 import { initPassport } from './passport';
 import authRoute from './router/auth';
-import dotenv from 'dotenv';
 import session from 'express-session';
 import passport from 'passport';
 import cookieParser from 'cookie-parser';
@@ -11,7 +13,6 @@ import { COOKIE_MAX_AGE } from './consts';
 
 const app = express();
 
-dotenv.config();
 app.enable('trust proxy');
 app.use(express.json());
 app.use(cookieParser());

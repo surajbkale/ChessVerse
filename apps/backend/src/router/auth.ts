@@ -7,16 +7,21 @@ import { COOKIE_MAX_AGE } from '../consts';
 
 const router = Router();
 
-const CLIENT_URL = process.env.AUTH_REDIRECT_URL ?? 'https://chessverse.lumenvault.live/game/random';
-const FRONTEND_URL = process.env.FRONTEND_URL ?? 'https://chessverse.lumenvault.live';
-const JWT_SECRET = process.env.JWT_SECRET || 'your_secret_key';
+// Read env vars lazily so they are always resolved after dotenv.config() runs
+function getConfig() {
+  const isProduction = process.env.NODE_ENV === 'production';
+  return {
+    CLIENT_URL: process.env.AUTH_REDIRECT_URL ?? 'https://chessverse.lumenvault.live/game/random',
+    FRONTEND_URL: process.env.FRONTEND_URL ?? 'https://chessverse.lumenvault.live',
+    JWT_SECRET: process.env.JWT_SECRET || 'your_secret_key',
+    cookieOptions: {
+      maxAge: COOKIE_MAX_AGE,
+      secure: isProduction,
+      sameSite: (isProduction ? 'none' : 'lax') as 'none' | 'lax',
+    },
+  };
+}
 
-const isProduction = process.env.NODE_ENV === 'production';
-const cookieOptions = {
-  maxAge: COOKIE_MAX_AGE,
-  secure: isProduction,
-  sameSite: (isProduction ? 'none' : 'lax') as 'none' | 'lax',
-};
 
 interface userJwtClaims {
   userId: string;
@@ -32,6 +37,7 @@ interface UserDetails {
 }
 
 router.post('/guest', async (req: Request, res: Response) => {
+  const { JWT_SECRET, cookieOptions } = getConfig();
   const bodyData = req.body;
   let guestUUID = 'guest-' + uuidv4();
 
@@ -57,6 +63,7 @@ router.post('/guest', async (req: Request, res: Response) => {
 });
 
 router.get('/refresh', async (req: Request, res: Response) => {
+  const { JWT_SECRET, cookieOptions } = getConfig();
   if (req.user) {
     const user = req.user as UserDetails;
 
@@ -93,6 +100,7 @@ router.get('/login/failed', (req: Request, res: Response) => {
 });
 
 router.get('/logout', (req: Request, res: Response) => {
+  const { FRONTEND_URL } = getConfig();
   res.clearCookie('guest');
   res.clearCookie('connect.sid');
 
@@ -111,20 +119,26 @@ router.get('/google', passport.authenticate('google', { scope: ['profile', 'emai
 
 router.get(
   '/google/callback',
-  passport.authenticate('google', {
-    successRedirect: CLIENT_URL,
-    failureRedirect: '/login/failed',
-  })
+  (req: Request, res: Response, next) => {
+    const { CLIENT_URL } = getConfig();
+    passport.authenticate('google', {
+      successRedirect: CLIENT_URL,
+      failureRedirect: '/auth/login/failed',
+    })(req, res, next);
+  }
 );
 
 router.get('/github', passport.authenticate('github', { scope: ['read:user', 'user:email'] }));
 
 router.get(
   '/github/callback',
-  passport.authenticate('github', {
-    successRedirect: CLIENT_URL,
-    failureRedirect: '/login/failed',
-  })
+  (req: Request, res: Response, next) => {
+    const { CLIENT_URL } = getConfig();
+    passport.authenticate('github', {
+      successRedirect: CLIENT_URL,
+      failureRedirect: '/auth/login/failed',
+    })(req, res, next);
+  }
 );
 
 export default router;

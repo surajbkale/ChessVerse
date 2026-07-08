@@ -3,7 +3,7 @@ import { useRef } from 'react';
 import { useRecoilState } from 'recoil';
 import { userAtom } from '@repo/store/userAtom';
 
-const BACKEND_URL = (import.meta.env.VITE_APP_BACKEND_URL = '');
+const BACKEND_URL = import.meta.env.VITE_APP_BACKEND_URL ?? '';
 
 const Login = () => {
   const navigate = useNavigate();
