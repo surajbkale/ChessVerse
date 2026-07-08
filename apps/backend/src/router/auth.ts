@@ -123,12 +123,17 @@ router.get(
     const { CLIENT_URL, JWT_SECRET } = getConfig();
     passport.authenticate('google', (err: any, user: any) => {
       if (err || !user) return res.redirect('/auth/login/failed');
-      const token = jwt.sign({ userId: user.id, name: user.name }, JWT_SECRET);
-      const url = new URL(CLIENT_URL);
-      url.searchParams.set('token', token);
-      url.searchParams.set('id', user.id);
-      url.searchParams.set('name', user.name ?? '');
-      res.redirect(url.toString());
+      try {
+        const token = jwt.sign({ userId: user.id, name: user.name }, JWT_SECRET);
+        const url = new URL(CLIENT_URL);
+        url.searchParams.set('token', token);
+        url.searchParams.set('id', user.id);
+        url.searchParams.set('name', user.name ?? '');
+        res.redirect(url.toString());
+      } catch (e) {
+        console.error('Google callback redirect error:', e);
+        res.redirect('/auth/login/failed');
+      }
     })(req, res, next);
   }
 );
@@ -141,14 +146,21 @@ router.get(
     const { CLIENT_URL, JWT_SECRET } = getConfig();
     passport.authenticate('github', (err: any, user: any) => {
       if (err || !user) return res.redirect('/auth/login/failed');
-      const token = jwt.sign({ userId: user.id, name: user.name }, JWT_SECRET);
-      const url = new URL(CLIENT_URL);
-      url.searchParams.set('token', token);
-      url.searchParams.set('id', user.id);
-      url.searchParams.set('name', user.name ?? '');
-      res.redirect(url.toString());
+      try {
+        const token = jwt.sign({ userId: user.id, name: user.name }, JWT_SECRET);
+        const url = new URL(CLIENT_URL);
+        url.searchParams.set('token', token);
+        url.searchParams.set('id', user.id);
+        url.searchParams.set('name', user.name ?? '');
+        res.redirect(url.toString());
+      } catch (e) {
+        console.error('GitHub callback redirect error:', e);
+        res.redirect('/auth/login/failed');
+      }
     })(req, res, next);
   }
 );
+
+export default router;
 
 export default router;
