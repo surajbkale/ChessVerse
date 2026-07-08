@@ -100,20 +100,19 @@ router.get('/login/failed', (req: Request, res: Response) => {
 });
 
 router.get('/logout', (req: Request, res: Response) => {
-  const { FRONTEND_URL } = getConfig();
   res.clearCookie('guest');
   res.clearCookie('connect.sid');
+  res.clearCookie('jwt');
 
   req.logout((err) => {
     if (err) {
       console.error('Error logging out:', err);
-      res.status(500).json({ error: 'Failed to log out' });
-    } else {
-      res.clearCookie('jwt');
-      res.redirect(FRONTEND_URL);
+      return res.status(500).json({ error: 'Failed to log out' });
     }
+    res.json({ success: true });
   });
 });
+
 
 router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 
