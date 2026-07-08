@@ -120,10 +120,15 @@ router.get('/google', passport.authenticate('google', { scope: ['profile', 'emai
 router.get(
   '/google/callback',
   (req: Request, res: Response, next) => {
-    const { CLIENT_URL } = getConfig();
-    passport.authenticate('google', {
-      successRedirect: CLIENT_URL,
-      failureRedirect: '/auth/login/failed',
+    const { CLIENT_URL, JWT_SECRET } = getConfig();
+    passport.authenticate('google', (err: any, user: any) => {
+      if (err || !user) return res.redirect('/auth/login/failed');
+      const token = jwt.sign({ userId: user.id, name: user.name }, JWT_SECRET);
+      const url = new URL(CLIENT_URL);
+      url.searchParams.set('token', token);
+      url.searchParams.set('id', user.id);
+      url.searchParams.set('name', user.name ?? '');
+      res.redirect(url.toString());
     })(req, res, next);
   }
 );
@@ -133,10 +138,15 @@ router.get('/github', passport.authenticate('github', { scope: ['read:user', 'us
 router.get(
   '/github/callback',
   (req: Request, res: Response, next) => {
-    const { CLIENT_URL } = getConfig();
-    passport.authenticate('github', {
-      successRedirect: CLIENT_URL,
-      failureRedirect: '/auth/login/failed',
+    const { CLIENT_URL, JWT_SECRET } = getConfig();
+    passport.authenticate('github', (err: any, user: any) => {
+      if (err || !user) return res.redirect('/auth/login/failed');
+      const token = jwt.sign({ userId: user.id, name: user.name }, JWT_SECRET);
+      const url = new URL(CLIENT_URL);
+      url.searchParams.set('token', token);
+      url.searchParams.set('id', user.id);
+      url.searchParams.set('name', user.name ?? '');
+      res.redirect(url.toString());
     })(req, res, next);
   }
 );
