@@ -24,7 +24,14 @@ const gameManager = new GameManager();
 wss.on('connection', function connection(ws, req) {
   //@ts-ignore
   const token: string = url.parse(req.url, true).query.token;
-  const user = extractAuthUser(token, ws);
+  let user;
+  try {
+    user = extractAuthUser(token, ws);
+  } catch (err) {
+    // extractAuthUser already closed the socket; just bail out
+    console.error('WS auth failed:', (err as Error).message);
+    return;
+  }
   gameManager.addUser(user);
 
   ws.on('close', () => {

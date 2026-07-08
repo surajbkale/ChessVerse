@@ -50,7 +50,7 @@ router.post('/guest', async (req: Request, res: Response) => {
     },
   });
 
-  const token = jwt.sign({ userId: user.id, name: user.name, isGuest: true }, JWT_SECRET);
+  const token = jwt.sign({ userId: user.id, name: user.name, isGuest: true }, JWT_SECRET, { expiresIn: '24h' });
   const UserDetails: UserDetails = {
     id: user.id,
     name: user.name!,
@@ -73,23 +73,35 @@ router.get('/refresh', async (req: Request, res: Response) => {
       },
     });
 
-    const token = jwt.sign({ userId: user.id, name: userDb?.name }, JWT_SECRET);
+    const token = jwt.sign({ userId: user.id, name: userDb?.name }, JWT_SECRET, { expiresIn: '7d' });
     res.json({
       token,
       id: user.id,
       name: userDb?.name,
     });
   } else if (req.cookies && req.cookies.guest) {
-    const decoded = jwt.verify(req.cookies.guest, JWT_SECRET) as userJwtClaims;
-    const token = jwt.sign({ userId: decoded.userId, name: decoded.name, isGuest: true }, JWT_SECRET);
-    let User: UserDetails = {
-      id: decoded.userId,
-      name: decoded.name,
-      token: token,
-      isGuest: true,
-    };
-    res.cookie('guest', token, cookieOptions);
-    res.json(User);
+    try {
+      const decoded = jwt.verify(req.cookies.guest, JWT_SECRET) as userJwtClaims;
+      const token = jwt.sign(
+        { userId: decoded.userId, name: decoded.name, isGuest: true },
+        JWT_SECRET,
+        { expiresIn: '24h' }
+      );
+      const User: UserDetails = {
+        id: decoded.userId,
+        name: decoded.name,
+        token: token,
+        isGuest: true,
+      };
+      res.cookie('guest', token, cookieOptions);
+      res.json(User);
+    } catch (err) {
+      if ((err as Error).name === 'TokenExpiredError') {
+        res.clearCookie('guest');
+        return res.status(401).json({ success: false, message: 'Guest session expired. Please start a new guest session.' });
+      }
+      return res.status(401).json({ success: false, message: 'Invalid token.' });
+    }
   } else {
     res.status(401).json({ success: false, message: 'Unauthorized' });
   }
@@ -123,7 +135,7 @@ router.get(
     passport.authenticate('google', (err: any, user: any) => {
       if (err || !user) return res.redirect('/auth/login/failed');
       try {
-        const token = jwt.sign({ userId: user.id, name: user.name }, JWT_SECRET);
+        const token = jwt.sign({ userId: user.id, name: user.name }, JWT_SECRET, { expiresIn: '7d' });
         const url = new URL(CLIENT_URL);
         url.searchParams.set('token', token);
         url.searchParams.set('id', user.id);
@@ -146,7 +158,7 @@ router.get(
     passport.authenticate('github', (err: any, user: any) => {
       if (err || !user) return res.redirect('/auth/login/failed');
       try {
-        const token = jwt.sign({ userId: user.id, name: user.name }, JWT_SECRET);
+        const token = jwt.sign({ userId: user.id, name: user.name }, JWT_SECRET, { expiresIn: '7d' });
         const url = new URL(CLIENT_URL);
         url.searchParams.set('token', token);
         url.searchParams.set('id', user.id);
