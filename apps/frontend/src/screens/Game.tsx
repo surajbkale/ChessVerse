@@ -10,6 +10,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import MovesTable from '../components/MovesTable';
 import { useUser } from '@repo/store/useUser';
 import { UserAvatar } from '../components/UserAvatar';
+import { GAME_TIME_MS } from '@repo/store/constants';
 
 // TODO: Move together, there's code repetition here
 export const INIT_GAME = 'init_game';
@@ -34,7 +35,6 @@ export interface GameResult {
   by: string;
 }
 
-const GAME_TIME_MS = 10 * 60 * 1000;
 
 export interface Player {
   id: string;

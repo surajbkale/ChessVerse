@@ -6,7 +6,8 @@
   "exports": {
     "./useUser": "./src/hooks/useUser.ts",
     "./userAtom": "./src/atoms/user.ts",
-    "./chessBoard": "./src/atoms/chessBoard.ts"
+    "./chessBoard": "./src/atoms/chessBoard.ts",
+    "./constants": "./src/constants.ts"
   },
   "keywords": [],
   "author": "",

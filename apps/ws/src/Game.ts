@@ -4,11 +4,12 @@ import { db } from './db';
 import { randomUUID } from 'crypto';
 import { socketManager, User } from './SocketManager';
 import { AuthProvider } from '@prisma/client';
+import { GAME_TIME_MS } from '@repo/store/constants';
 
 type GAME_STATUS = 'IN_PROGRESS' | 'COMPLETED' | 'ABANDONED' | 'TIME_UP' | 'PLAYER_EXIT';
 type GAME_RESULT = 'WHITE_WINS' | 'BLACK_WINS' | 'DRAW';
 
-const GAME_TIME_MS = 10 * 60 * 60 * 1000;
+
 
 export function isPromoting(chess: Chess, from: Square, to: Square) {
   if (!from) {
