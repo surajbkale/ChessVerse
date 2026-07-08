@@ -68,7 +68,7 @@ export const ChessBoard = memo(
       type: PieceSymbol;
       color: Color;
     } | null)[][];
-    socket: WebSocket;
+    socket: WebSocket | null;
   }) => {
     console.log('chessboard reloaded');
 
@@ -291,7 +291,7 @@ export const ChessBoard = memo(
                                 if (moveResult.san.includes('#')) {
                                   setGameOver(true);
                                 }
-                                socket.send(
+                                socket?.send(
                                   JSON.stringify({
                                     type: MOVE,
                                     payload: {

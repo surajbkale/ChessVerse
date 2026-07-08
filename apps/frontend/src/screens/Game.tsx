@@ -57,7 +57,7 @@ export interface Metadata {
 }
 
 export const Game = () => {
-  const socket = useSocket();
+  const { socket, isConnecting } = useSocket();
   const { gameId } = useParams();
   const user = useUser();
 
@@ -246,10 +246,27 @@ export const Game = () => {
     navigate('/');
   };
 
-  if (!socket) return <div>Connecting...</div>;
+  // Only show a full blank screen before a game starts.
+  // Once a game is in progress, show a non-destructive overlay so state is preserved.
+  if (!socket && !started) {
+    return (
+      <div className="flex items-center justify-center h-screen text-white">
+        {isConnecting ? 'Reconnecting...' : 'Connecting...'}
+      </div>
+    );
+  }
 
   return (
     <div className="">
+      {/* Reconnecting overlay — shown when connection drops mid-game */}
+      {!socket && started && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="rounded-xl bg-bgAuxiliary3 px-8 py-6 text-center text-white shadow-2xl">
+            <div className="mb-2 text-lg font-semibold">Connection lost</div>
+            <div className="text-sm text-gray-400">Reconnecting…</div>
+          </div>
+        </div>
+      )}
       {result && (
         <GameEndModal
           blackPlayer={gameMetadata?.blackPlayer}
@@ -311,7 +328,7 @@ export const Game = () => {
                       <ShareGame gameId={gameID} />
                     </div>
                   ) : (
-                    gameId === 'random' && (
+                    gameId === 'random' && socket && (
                       <Button
                         onClick={() => {
                           socket.send(
