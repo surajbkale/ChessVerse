@@ -15,6 +15,8 @@ export function initPassport() {
   const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
   const GITHUB_CLIENT_ID = process.env.GITHUB_CLIENT_ID;
   const GITHUB_CLIENT_SECRET = process.env.GITHUB_CLIENT_SECRET;
+  // Must be the backend's own public URL, e.g. http://localhost:3000 or https://chessverse-backend.onrender.com
+  const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3000';
 
   if (
     !GOOGLE_CLIENT_ID ||
@@ -33,7 +35,7 @@ export function initPassport() {
       {
         clientID: GOOGLE_CLIENT_ID,
         clientSecret: GOOGLE_CLIENT_SECRET,
-        callbackURL: '/auth/google/callback',
+        callbackURL: `${BACKEND_URL}/auth/google/callback`,
       },
       async function (
         accessToken: string,
@@ -65,7 +67,7 @@ export function initPassport() {
       {
         clientID: GITHUB_CLIENT_ID,
         clientSecret: GITHUB_CLIENT_SECRET,
-        callbackURL: '/auth/github/callback',
+        callbackURL: `${BACKEND_URL}/auth/github/callback`,
       },
       async function (
         accessToken: string,
