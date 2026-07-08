@@ -5,36 +5,12 @@ import { randomUUID } from 'crypto';
 import { socketManager, User } from './SocketManager';
 import { AuthProvider } from '@prisma/client';
 import { GAME_TIME_MS } from '@repo/store/constants';
+import { isPromoting } from '@repo/store/chess';
 
 type GAME_STATUS = 'IN_PROGRESS' | 'COMPLETED' | 'ABANDONED' | 'TIME_UP' | 'PLAYER_EXIT';
 type GAME_RESULT = 'WHITE_WINS' | 'BLACK_WINS' | 'DRAW';
 
 
-
-export function isPromoting(chess: Chess, from: Square, to: Square) {
-  if (!from) {
-    return false;
-  }
-
-  const piece = chess.get(from);
-
-  if (piece?.type !== 'p') {
-    return false;
-  }
-
-  if (piece.color !== chess.turn()) {
-    return false;
-  }
-
-  if (!['1', '8'].some((it) => to.endsWith(it))) {
-    return false;
-  }
-
-  return chess
-    .moves({ square: from, verbose: true })
-    .map((it) => it.to)
-    .includes(to);
-}
 
 export class Game {
   public gameId: string;

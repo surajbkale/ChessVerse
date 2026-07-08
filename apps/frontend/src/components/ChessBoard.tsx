@@ -10,36 +10,14 @@ import { drawArrow } from '../utils/canvas';
 import Confetti from 'react-confetti';
 import MoveSound from '/move.wav';
 import CaptureSound from '/capture.wav';
+import { isPromoting } from '@repo/store/chess';
 
 import { useRecoilState } from 'recoil';
 
 import { isBoardFlippedAtom, movesAtom, userSelectedMoveIndexAtom } from '@repo/store/chessBoard';
 
-export function isPromoting(chess: Chess, from: Square, to: Square) {
-  if (!from) {
-    return false;
-  }
-
-  const piece = chess.get(from);
-
-  if (piece?.type !== 'p') {
-    return false;
-  }
-
-  if (piece.color !== chess.turn()) {
-    return false;
-  }
-
-  if (!['1', '8'].some((it) => to.endsWith(it))) {
-    return false;
-  }
-
-  return chess
-    .history({ verbose: true })
-    .map((it) => it.to)
-    .includes(to);
-}
-
+// Re-export so existing imports from ChessBoard still work
+export { isPromoting };
 export const ChessBoard = memo(
   ({
     gameId,
