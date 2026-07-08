@@ -86,6 +86,9 @@ export const Game = () => {
     }
   }, [user]);
 
+  // TypeScript guard: the useEffect above redirects, but TS can't infer that
+  if (!user) return null;
+
   useEffect(() => {
     if (!socket) {
       return;
