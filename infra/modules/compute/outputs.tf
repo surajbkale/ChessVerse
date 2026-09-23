@@ -1,0 +1,10 @@
+output "alb_dns_name" { value = aws_lb.main.dns_name }
+output "alb_zone_id" { value = aws_lb.main.zone_id }
+output "alb_arn" { value = aws_lb.main.arn }
+output "alb_arn_suffix" { value = aws_lb.main.arn_suffix }
+output "backend_asg_name" { value = aws_autoscaling_group.backend.name }
+output "ws_asg_name" { value = aws_autoscaling_group.ws.name }
+output "backend_tg_arn" { value = aws_lb_target_group.backend.arn }
+output "ws_tg_arn" { value = aws_lb_target_group.ws.arn }
+output "backend_tg_arn_suffix" { value = aws_lb_target_group.backend.arn_suffix }
+output "ws_tg_arn_suffix" { value = aws_lb_target_group.ws.arn_suffix }

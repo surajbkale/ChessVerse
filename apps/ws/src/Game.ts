@@ -49,7 +49,6 @@ export class Game {
       createdAt: Date;
     }[]
   ) {
-    console.log(moves);
     moves.forEach((move) => {
       if (isPromoting(this.board, move.from as Square, move.to as Square)) {
         this.board.move({
@@ -278,7 +277,7 @@ export class Game {
     return this.player2TimeConsumed;
   }
 
-  async resetAbandonTimer() {
+  resetAbandonTimer() {
     if (this.timer) {
       clearTimeout(this.timer);
     }
@@ -287,7 +286,7 @@ export class Game {
     }, 60 * 1000);
   }
 
-  async resetMoveTimer() {
+  resetMoveTimer() {
     if (this.moveTimer) {
       clearTimeout(this.moveTimer);
     }

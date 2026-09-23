@@ -22,13 +22,16 @@ const wss = new WebSocketServer({ server });
 const gameManager = new GameManager();
 
 wss.on('connection', function connection(ws, req) {
-  //@ts-ignore
-  const token: string = url.parse(req.url, true).query.token;
+  const token = url.parse(req.url, true).query.token as string;
   let user;
   try {
     user = extractAuthUser(token, ws);
   } catch (err) {
-    // extractAuthUser already closed the socket; just bail out
+    // extractAuthUser closes the socket for known JWT errors (4401).
+    // This is a safety-net close for any other unexpected throw.
+    if (ws.readyState === ws.OPEN) {
+      ws.close(4001, 'Unauthorized');
+    }
     console.error('WS auth failed:', (err as Error).message);
     return;
   }

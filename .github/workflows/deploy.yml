@@ -1,86 +1,407 @@
-name: Deploy to Production
+name: Deploy
+
+# Branch → Environment mapping:
+#   main  →  staging
+#   prod  →  production
 
 on:
   push:
-    branches: ['main']
+    branches: [main, prod]
+
+env:
+  AWS_REGION: "ap-south-1"
+  # ECR_REGISTRY is the same for both environments (single ECR per AWS account)
+  ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
 
 jobs:
-  build-and-push:
+  # ── 1. Validate migration diff FIRST (H2 fix) ────────────────────────────────
+  # Runs prisma migrate diff to produce a human-readable diff of pending SQL.
+  # On production the 'environment: production' block enforces a required reviewer
+  # so a human must read the SQL diff before approving the deployment.
+  validate-migrations:
+    name: Validate DB Migrations (diff)
     runs-on: ubuntu-latest
+    environment: ${{ github.ref == 'refs/heads/prod' && 'production' || 'staging' }}
+    outputs:
+      has_pending: ${{ steps.diff.outputs.has_pending }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+          node-version: '20'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ env.AWS_REGION }}
+
+      - name: Fetch DATABASE_URL from Secrets Manager
+        id: secrets
+        run: |
+          DATABASE_URL=$(aws secretsmanager get-secret-value \
+            --secret-id "${{ secrets.APP_SECRET_ARN }}" \
+            --query SecretString --output text \
+            | jq -r '.DATABASE_URL')
+          echo "::add-mask::${DATABASE_URL}"
+          echo "database_url=${DATABASE_URL}" >> $GITHUB_OUTPUT
+
+      - name: Install db package
+        run: yarn workspace @repo/db install --frozen-lockfile
+
+      - name: Run prisma migrate diff (dry-run)
+        id: diff
+        working-directory: packages/db
+        env:
+          DATABASE_URL: ${{ steps.secrets.outputs.database_url }}
+        run: |
+          DIFF=$(npx prisma migrate diff \
+            --from-schema-datasource prisma/schema.prisma \
+            --to-migrations prisma/migrations \
+            --shadow-database-url "$DATABASE_URL" \
+            --script 2>&1 || true)
+
+          if [ -z "$DIFF" ] || echo "$DIFF" | grep -q "No migration needed"; then
+            echo "has_pending=false" >> $GITHUB_OUTPUT
+            echo "✅ No pending migrations." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "has_pending=true" >> $GITHUB_OUTPUT
+            echo "## ⚠️ Pending DB Migration" >> $GITHUB_STEP_SUMMARY
+            echo '```sql' >> $GITHUB_STEP_SUMMARY
+            echo "$DIFF" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "Review the SQL above before approving production deployment."
+          fi
+
+  # ── 2. Apply DB migrations ─────────────────────────────────────────────────
+  # H2 fix: production migration requires the validate-migrations job to complete
+  # AND a manual approval on the 'production' GitHub Environment.
+  migrate:
+    name: Prisma DB Migrations
+    runs-on: ubuntu-latest
+    needs: validate-migrations
+    environment: ${{ github.ref == 'refs/heads/prod' && 'production' || 'staging' }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ env.AWS_REGION }}
+
+      - name: Fetch DATABASE_URL from Secrets Manager
+        id: secrets
+        run: |
+          DATABASE_URL=$(aws secretsmanager get-secret-value \
+            --secret-id "${{ secrets.APP_SECRET_ARN }}" \
+            --query SecretString --output text \
+            | jq -r '.DATABASE_URL')
+          echo "::add-mask::${DATABASE_URL}"
+          echo "database_url=${DATABASE_URL}" >> $GITHUB_OUTPUT
+
+      - name: Install dependencies (db package only)
+        run: yarn workspace @repo/db install --frozen-lockfile
+
+      - name: Run Prisma migrations
+        working-directory: packages/db
+        env:
+          DATABASE_URL: ${{ steps.secrets.outputs.database_url }}
+        run: npx prisma migrate deploy --schema=prisma/schema.prisma
+
+  # ── 3. Build & push backend + ws images to ECR ────────────────────────────
+  build-and-push:
+    name: Build & Push Docker Images to ECR
+    runs-on: ubuntu-latest
+    needs: migrate
+    outputs:
+      image-tag: sha-${{ github.sha }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # Build & Push Backend
       - name: Build and Push Backend
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./apps/backend/Dockerfile
           push: true
+          # B3 fix: prefix with "sha-" so ECR lifecycle rule (tagPrefixList=["sha-"]) retains deployed images.
+          # M4 fix: only tag 'latest' on prod branch — staging never overwrites production latest.
           tags: |
-            ${{ secrets.DOCKER_USERNAME }}/chess-backend:${{ github.sha }}
-            ${{ secrets.DOCKER_USERNAME }}/chess-backend:latest
-          cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/chess-backend:cache
-          cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/chess-backend:cache,mode=max
+            ${{ env.ECR_REGISTRY }}/chessverse-backend:sha-${{ github.sha }}
+            ${{ github.ref == 'refs/heads/prod' && format('{0}/chessverse-backend:latest', env.ECR_REGISTRY) || '' }}
+          cache-from: type=registry,ref=${{ env.ECR_REGISTRY }}/chessverse-backend:cache
+          cache-to:   type=registry,ref=${{ env.ECR_REGISTRY }}/chessverse-backend:cache,mode=max
 
-      # 2. Build & Push WebSocket
       - name: Build and Push WS
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./apps/ws/Dockerfile
           push: true
+          # B3 fix: sha- prefix matches the ECR lifecycle rule.
+          # M4 fix: same — latest only on prod.
           tags: |
-            ${{ secrets.DOCKER_USERNAME }}/chess-ws:${{ github.sha }}
-            ${{ secrets.DOCKER_USERNAME }}/chess-ws:latest
-          cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/chess-ws:cache
-          cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/chess-ws:cache,mode=max
+            ${{ env.ECR_REGISTRY }}/chessverse-ws:sha-${{ github.sha }}
+            ${{ github.ref == 'refs/heads/prod' && format('{0}/chessverse-ws:latest', env.ECR_REGISTRY) || '' }}
+          cache-from: type=registry,ref=${{ env.ECR_REGISTRY }}/chessverse-ws:cache
+          cache-to:   type=registry,ref=${{ env.ECR_REGISTRY }}/chessverse-ws:cache,mode=max
 
-      # Build & Push Frontend
-      - name: Build and Push Frontend
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./apps/frontend/Dockerfile
-          push: true
-          tags: |
-            ${{ secrets.DOCKER_USERNAME }}/chess-frontend:${{ github.sha }}
-            ${{ secrets.DOCKER_USERNAME }}/chess-frontend:latest
-          build-args: |
-            VITE_APP_BACKEND_URL=/
-            VITE_APP_WS_URL=wss://chessverse.lumenvault.live/ws/
-          cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/chess-frontend:cache
-          cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/chess-frontend:cache,mode=max
+  # ── 4. Resolve env slug once, then deploy backend + WS in parallel ──────────
+  # R5 fix: slug determined once in a setup job — no more duplicate if-blocks.
+  # B5 fix: each service writes its own SSM param before triggering its refresh.
+  # H3 fix: polling loop makes one describe-instance-refreshes call per iteration.
 
-  deploy:
-    needs: build-and-push
+  setup:
+    name: Resolve Environment
     runs-on: ubuntu-latest
+    needs: build-and-push
+    outputs:
+      slug: ${{ steps.slug.outputs.slug }}
     steps:
-      - name: Deploy to EC2
-        uses: appleboy/ssh-action@v1.0.3
+      - name: Determine environment slug
+        id: slug
+        run: |
+          if [ "${{ github.ref }}" = "refs/heads/prod" ]; then
+            echo "slug=production" >> $GITHUB_OUTPUT
+          else
+            echo "slug=staging" >> $GITHUB_OUTPUT
+          fi
+
+  deploy-backend:
+    name: Deploy Backend (ASG Instance Refresh)
+    runs-on: ubuntu-latest
+    needs: setup
+    environment: ${{ github.ref == 'refs/heads/prod' && 'production' || 'staging' }}
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ubuntu
-          key: ${{ secrets.EC2_KEY }}
-          script: |
-            cd ChessVerse
-            git pull origin main
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ env.AWS_REGION }}
 
-            # --- FIX: Pass variable inline ---
-            # We explicitly pass the SHA as IMAGE_TAG to the command
+      - name: Write backend image tag to SSM Parameter Store
+        run: |
+          # B5 fix: backend has its own SSM param, independent of WS.
+          aws ssm put-parameter \
+            --name "/chessverse/${{ needs.setup.outputs.slug }}/backend-image-tag" \
+            --value "sha-${{ github.sha }}" \
+            --type String \
+            --overwrite
+          echo "✅ SSM /chessverse/${{ needs.setup.outputs.slug }}/backend-image-tag = sha-${{ github.sha }}"
 
-            sudo IMAGE_TAG=${{ github.sha }} docker compose -f docker-compose.prod.yml pull
+      - name: Trigger Backend ASG instance refresh
+        id: backend_refresh
+        run: |
+          REFRESH_ID=$(aws autoscaling start-instance-refresh \
+            --auto-scaling-group-name "chessverse-${{ needs.setup.outputs.slug }}-backend-asg" \
+            --strategy Rolling \
+            --query "InstanceRefreshId" \
+            --output text)
+          echo "refresh_id=${REFRESH_ID}" >> $GITHUB_OUTPUT
+          echo "🔄 Backend instance refresh started: $REFRESH_ID"
 
-            sudo IMAGE_TAG=${{ github.sha }} docker compose -f docker-compose.prod.yml up -d --remove-orphans
+      - name: Poll backend refresh until complete
+        run: |
+          REFRESH_ID="${{ steps.backend_refresh.outputs.refresh_id }}"
+          ASG="chessverse-${{ needs.setup.outputs.slug }}-backend-asg"
+          echo "Polling refresh $REFRESH_ID on $ASG ..."
 
-            sudo docker image prune -f
+          for i in $(seq 1 40); do
+            # H3 fix: single API call per iteration — parse both fields from one JSON response.
+            RESPONSE=$(aws autoscaling describe-instance-refreshes \
+              --auto-scaling-group-name "$ASG" \
+              --instance-refresh-ids "$REFRESH_ID" \
+              --query "InstanceRefreshes[0].[Status,PercentageComplete]" \
+              --output text)
+            STATUS=$(echo "$RESPONSE" | awk '{print $1}')
+            PERCENT=$(echo "$RESPONSE" | awk '{print $2}')
+
+            echo "Attempt $i/40 -- Status: $STATUS (${PERCENT}% complete)"
+
+            case "$STATUS" in
+              Successful)
+                echo "✅ Backend instance refresh completed successfully."
+                exit 0
+                ;;
+              Failed|Cancelled|RollbackSuccessful|RollbackFailed)
+                echo "❌ Backend instance refresh ended with status: $STATUS"
+                exit 1
+                ;;
+            esac
+
+            sleep 30
+          done
+
+          echo "❌ Timed out waiting for backend instance refresh after 20 minutes."
+          exit 1
+
+  deploy-ws:
+    name: Deploy WebSocket (ASG Instance Refresh)
+    runs-on: ubuntu-latest
+    needs: setup
+    environment: ${{ github.ref == 'refs/heads/prod' && 'production' || 'staging' }}
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ env.AWS_REGION }}
+
+      - name: Write WS image tag to SSM Parameter Store
+        run: |
+          # B5 fix: WS has its own SSM param, fully independent of backend.
+          aws ssm put-parameter \
+            --name "/chessverse/${{ needs.setup.outputs.slug }}/ws-image-tag" \
+            --value "sha-${{ github.sha }}" \
+            --type String \
+            --overwrite
+          echo "✅ SSM /chessverse/${{ needs.setup.outputs.slug }}/ws-image-tag = sha-${{ github.sha }}"
+
+      - name: Trigger WS ASG instance refresh
+        id: ws_refresh
+        run: |
+          REFRESH_ID=$(aws autoscaling start-instance-refresh \
+            --auto-scaling-group-name "chessverse-${{ needs.setup.outputs.slug }}-ws-asg" \
+            --strategy Rolling \
+            --query "InstanceRefreshId" \
+            --output text)
+          echo "refresh_id=${REFRESH_ID}" >> $GITHUB_OUTPUT
+          echo "🔄 WS instance refresh started: $REFRESH_ID"
+
+      - name: Poll WS refresh until complete
+        run: |
+          REFRESH_ID="${{ steps.ws_refresh.outputs.refresh_id }}"
+          ASG="chessverse-${{ needs.setup.outputs.slug }}-ws-asg"
+          echo "Polling refresh $REFRESH_ID on $ASG ..."
+
+          for i in $(seq 1 40); do
+            # H3 fix: single API call per iteration — parse both fields from one JSON response.
+            RESPONSE=$(aws autoscaling describe-instance-refreshes \
+              --auto-scaling-group-name "$ASG" \
+              --instance-refresh-ids "$REFRESH_ID" \
+              --query "InstanceRefreshes[0].[Status,PercentageComplete]" \
+              --output text)
+            STATUS=$(echo "$RESPONSE" | awk '{print $1}')
+            PERCENT=$(echo "$RESPONSE" | awk '{print $2}')
+
+            echo "Attempt $i/40 -- Status: $STATUS (${PERCENT}% complete)"
+
+            case "$STATUS" in
+              Successful)
+                echo "✅ WS instance refresh completed successfully."
+                exit 0
+                ;;
+              Failed|Cancelled|RollbackSuccessful|RollbackFailed)
+                echo "❌ WS instance refresh ended with status: $STATUS"
+                exit 1
+                ;;
+            esac
+
+            sleep 30
+          done
+
+          echo "❌ Timed out waiting for WS instance refresh after 20 minutes."
+          exit 1
+
+  # ── 5. Build & deploy frontend to S3 + CloudFront ─────────────────────────
+  deploy-frontend:
+    name: Deploy Frontend to S3 + CloudFront
+    runs-on: ubuntu-latest
+    needs: migrate
+    environment: ${{ github.ref == 'refs/heads/prod' && 'production' || 'staging' }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Build Frontend
+        working-directory: apps/frontend
+        env:
+          VITE_APP_BACKEND_URL: ${{ secrets.VITE_APP_BACKEND_URL }}
+          VITE_APP_WS_URL:      ${{ secrets.VITE_APP_WS_URL }}
+        run: yarn turbo run build --filter=frontend...
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ env.AWS_REGION }}
+
+      # Upload hashed assets with long-lived cache, then index.html with no-cache
+      - name: Sync dist to S3
+        run: |
+          aws s3 sync apps/frontend/dist/ s3://${{ secrets.FRONTEND_S3_BUCKET }}/ \
+            --delete \
+            --cache-control "public, max-age=31536000, immutable" \
+            --exclude "index.html"
+
+          aws s3 cp apps/frontend/dist/index.html \
+            s3://${{ secrets.FRONTEND_S3_BUCKET }}/index.html \
+            --cache-control "no-cache, no-store, must-revalidate"
+
+      - name: Invalidate CloudFront cache
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --paths "/*"
+
+  # ── 6. Post-deploy health check ────────────────────────────────────────────
+  verify-deployment:
+    name: Verify Deployment Health
+    runs-on: ubuntu-latest
+    needs: [deploy-backend, deploy-ws, deploy-frontend]
+    environment: ${{ github.ref == 'refs/heads/prod' && 'production' || 'staging' }}
+    steps:
+      - name: Health check -- API endpoint
+        run: |
+          echo "Waiting 30s for instances to fully warm up after refresh..."
+          sleep 30
+
+          for i in {1..10}; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              "https://${{ secrets.API_DOMAIN }}/health" || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo "✅ API health check passed (attempt $i)"
+              exit 0
+            fi
+            echo "Attempt $i: got $STATUS -- waiting 15s"
+            sleep 15
+          done
+          echo "❌ API health check failed after 10 attempts"
+          exit 1
