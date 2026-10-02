@@ -59,6 +59,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "alb_logs" {
   rule {
     id     = "expire-old-logs"
     status = "Enabled"
+    filter {}
     # M3 fix: retention is now configurable per environment
     expiration { days = var.alb_log_retention_days }
   }

@@ -42,7 +42,9 @@ resource "aws_s3_bucket" "tf_state" {
     prevent_destroy = true
   }
 
-  tags = { Name = "chessverse-terraform-state" }
+  tags = {
+    Name = "chessverse-terraform-state"
+  }
 }
 
 resource "aws_s3_bucket_versioning" "tf_state" {

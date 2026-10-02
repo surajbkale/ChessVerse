@@ -25,7 +25,7 @@ variable "db_name" {
 
 variable "engine_version" {
   type    = string
-  default = "15.4"
+  default = "15.10"
 }
 
 variable "min_acu" {

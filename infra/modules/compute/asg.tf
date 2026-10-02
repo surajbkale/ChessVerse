@@ -24,7 +24,6 @@ resource "aws_autoscaling_group" "backend" {
       checkpoint_delay       = 300
       checkpoint_percentages = [25, 50, 100]
     }
-    triggers = ["launch_template"]
   }
 
   tag {
@@ -71,7 +70,6 @@ resource "aws_autoscaling_group" "ws" {
       checkpoint_delay       = 300
       checkpoint_percentages = [25, 50, 100]
     }
-    triggers = ["launch_template"]
   }
 
   tag {
