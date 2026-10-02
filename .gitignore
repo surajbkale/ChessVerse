@@ -37,3 +37,13 @@ yarn-error.log*
 .DS_Store
 *.pem
 node_modules
+
+# Terraform — never commit secrets or local state
+infra/**/terraform.tfvars
+infra/**/terraform.tfvars.json
+infra/**/.terraform/
+infra/**/.terraform.lock.hcl
+infra/**/terraform.tfstate
+infra/**/terraform.tfstate.backup
+infra/*.tfplan
+infra/**/*.tfplan

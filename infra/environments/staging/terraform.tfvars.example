@@ -1,0 +1,19 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# infra/environments/staging/terraform.tfvars
+# Copy this file to terraform.tfvars and fill in real values.
+# NEVER commit terraform.tfvars — it's in .gitignore.
+# ─────────────────────────────────────────────────────────────────────────────
+
+aws_region = "ap-south-1"
+
+# Google OAuth (create a separate staging OAuth app in Google Console)
+google_client_id     = "your-staging-google-client-id.apps.googleusercontent.com"
+google_client_secret = "your-staging-google-client-secret"
+
+# GitHub OAuth (create a separate staging OAuth app in GitHub Settings → Developer Settings)
+github_client_id     = "your-staging-github-client-id"
+github_client_secret = "your-staging-github-client-secret"
+
+# JWT / Cookie secrets — generate with: openssl rand -base64 48
+jwt_secret    = "generate-a-strong-random-secret-min-32-chars"
+cookie_secret = "generate-a-different-strong-random-secret-min-32-chars"

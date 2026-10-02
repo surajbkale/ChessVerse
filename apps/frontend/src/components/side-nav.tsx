@@ -12,6 +12,9 @@ import { useEffect, useState } from 'react';
 import { ChevronDownIcon } from '@radix-ui/react-icons';
 import { type LucideIcon } from 'lucide-react';
 import { useUser } from '@repo/store/useUser';
+import { useSetRecoilState } from 'recoil';
+import { userAtom } from '@repo/store/userAtom';
+import { handleLogout } from '@/components/constants/side-nav';
 
 export interface NavItem {
   title: string;
@@ -19,6 +22,7 @@ export interface NavItem {
   icon: LucideIcon;
   color?: string;
   isChidren?: boolean;
+  isLogout?: boolean;
   children?: NavItem[];
 }
 
@@ -30,6 +34,7 @@ interface SideNavProps {
 
 export function SideNav({ items, setOpen, className }: SideNavProps) {
   const user = useUser();
+  const setUser = useSetRecoilState(userAtom);
   const location = useLocation();
   const { isOpen } = useSidebar();
   const [openItem, setOpenItem] = useState('');
@@ -120,13 +125,17 @@ export function SideNav({ items, setOpen, className }: SideNavProps) {
           >
             {' '}
             <a
-              href={item.href}
-              onClick={() => {
+              href={item.isLogout ? undefined : item.href}
+              onClick={(e) => {
+                if (item.isLogout) {
+                  e.preventDefault();
+                  handleLogout((u) => setUser(u));
+                }
                 if (setOpen) setOpen(false);
               }}
               className={cn(
                 buttonVariants({ variant: 'default' }),
-                'group relative bg-transparent flex h-12 justify-start hover:bg-transparent]'
+                'group relative bg-transparent flex h-12 justify-start hover:bg-transparent cursor-pointer'
               )}
             >
               <item.icon className={cn('h-5 w-5', item.color)} />

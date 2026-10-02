@@ -1,34 +1,49 @@
-# Multi-stage build for ws server
-FROM node:18-alpine AS base
+FROM node:20-slim AS base
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable
 
+# ── 1. Prune — isolate ws workspace files ─────────────────────────────────────
+FROM base AS pruner
 WORKDIR /app
+RUN npm install -g turbo
+COPY . .
+RUN turbo prune --scope=ws --docker
 
-COPY package.json yarn.lock turbo.json tsconfig.json ./
-COPY packages ./packages
-COPY apps ./apps
+# ── 2. Installer — install deps and build ─────────────────────────────────────
+FROM base AS installer
+WORKDIR /app
+# openssl required by Prisma client
+RUN apt-get update -y && apt-get install -y openssl
 
-RUN corepack enable && yarn install --frozen-lockfile
+COPY --from=pruner /app/out/json/ .
+COPY --from=pruner /app/out/yarn.lock ./yarn.lock
+RUN yarn install --frozen-lockfile
 
-# Generate Prisma client for @repo/db
+COPY --from=pruner /app/out/full/ .
+# Generate Prisma client (produces the native .node engine binary)
 RUN npx prisma generate --schema=packages/db/prisma/schema.prisma
 
-# Build ws (bundle TypeScript with esbuild)
+# esbuild bundles all TS + node_modules into a single dist/index.js
+RUN yarn turbo run build --filter=./apps/ws...
+
+# ── 3. Runner — minimal production image ──────────────────────────────────────
+# H4 fix: esbuild --bundle means node_modules are NOT needed at runtime.
+# Only copy: the compiled bundle + the Prisma native engine binary.
+FROM node:20-slim AS runner
 WORKDIR /app
-RUN npx esbuild apps/ws/src/index.ts --bundle --platform=node --outfile=apps/ws/dist/index.js
 
-FROM node:18-alpine AS runtime
-WORKDIR /app
+# openssl required by Prisma at runtime
+RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 
-RUN apk add --no-cache openssl
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 expressjs
+USER expressjs
 
-ENV NODE_ENV=production
+# Bundle — the only JS we need at runtime
+COPY --from=installer --chown=expressjs:nodejs /app/apps/ws/dist ./apps/ws/dist
 
-COPY --from=base /app/node_modules /app/node_modules
-COPY --from=base /app/packages /app/packages
-COPY --from=base /app/apps/ws/dist ./dist
-COPY --from=base /app/apps/ws/package.json ./package.json
+# Prisma native engine binary (must live alongside dist/ at the same relative path)
+COPY --from=installer --chown=expressjs:nodejs /app/apps/ws/libquery_engine-debian-openssl-3.0.x.so.node ./apps/ws/
 
-EXPOSE 8080
-CMD ["node", "dist/index.js"]
-
-
+CMD ["node", "apps/ws/dist/index.js"]

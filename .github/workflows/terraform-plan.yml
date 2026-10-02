@@ -1,0 +1,249 @@
+name: Terraform Plan (PR Check)
+
+on:
+  pull_request:
+    branches: [main, prod]  # main → staging plan, prod → production plan
+    paths:
+      - 'infra/**'
+
+permissions:
+  contents: read
+  pull-requests: write   # Needed to post PR comments
+
+env:
+  TF_VERSION: "1.10.0"
+  AWS_REGION: "ap-south-1"
+
+jobs:
+  # Runs on every PR targeting main — staging only
+  plan-staging:
+    name: Plan — Staging
+    runs-on: ubuntu-latest
+    if: github.base_ref == 'main'
+    defaults:
+      run:
+        working-directory: infra/environments/staging
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # L3 fix: skip if only production-specific infra files changed
+      - name: Check staging paths changed
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            relevant:
+              - 'infra/modules/**'
+              - 'infra/environments/staging/**'
+              - 'infra/bootstrap/**'
+
+      - name: Skip if no relevant staging changes
+        if: steps.filter.outputs.relevant != 'true'
+        run: |
+          echo "No staging infra changes — skipping plan."
+          exit 0
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ env.AWS_REGION }}
+
+      - name: Terraform Init
+        run: terraform init -input=false
+
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive
+        continue-on-error: true
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan
+        id: plan
+        run: |
+          terraform plan -no-color -input=false \
+            -var="jwt_secret=${{ secrets.TF_VAR_JWT_SECRET }}" \
+            -var="cookie_secret=${{ secrets.TF_VAR_COOKIE_SECRET }}" \
+            -var="google_client_id=${{ secrets.TF_VAR_GOOGLE_CLIENT_ID }}" \
+            -var="google_client_secret=${{ secrets.TF_VAR_GOOGLE_CLIENT_SECRET }}" \
+            -var="github_client_id=${{ secrets.TF_VAR_GITHUB_CLIENT_ID }}" \
+            -var="github_client_secret=${{ secrets.TF_VAR_GITHUB_CLIENT_SECRET }}" \
+            -out=tfplan 2>&1 | tee plan_output.txt
+          echo "exitcode=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
+
+      - name: Post Plan as PR Comment
+        uses: actions/github-script@v7
+        if: always()
+        with:
+          script: |
+            const fs = require('fs');
+            const plan = fs.readFileSync('infra/environments/staging/plan_output.txt', 'utf8');
+            const MAX_LEN = 60000;
+            const truncated = plan.length > MAX_LEN
+              ? plan.substring(0, MAX_LEN) + '\n...[TRUNCATED — see Actions logs for full output]'
+              : plan;
+
+            const body = `## 🏗 Terraform Plan — **Staging**
+            
+            <details><summary>Show Plan</summary>
+            
+            \`\`\`hcl
+            ${truncated}
+            \`\`\`
+            </details>
+            
+            *Triggered by @${{ github.actor }} on \`${{ github.head_ref }}\`*`;
+
+            // Find existing comment and update it, or create a new one
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find(c => c.body.includes('Terraform Plan — **Staging**'));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+
+      - name: Fail if plan errored
+        if: steps.plan.outputs.exitcode == '1'
+        run: exit 1
+
+  # ── Production plan — only triggered by PRs targeting the prod branch ───────
+  # Add a second workflow trigger block for prod PRs by using a separate job
+  # gated on the base branch. GitHub doesn't allow two separate `on.pull_request`
+  # blocks, so we gate via the built-in `github.base_ref` context.
+  plan-production:
+    name: Plan — Production
+    runs-on: ubuntu-latest
+    # Only run when the PR targets the prod branch
+    if: github.base_ref == 'prod'
+    defaults:
+      run:
+        working-directory: infra/environments/production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # L3 fix: skip if only staging-specific infra files changed
+      - name: Check production paths changed
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            relevant:
+              - 'infra/modules/**'
+              - 'infra/environments/production/**'
+              - 'infra/bootstrap/**'
+
+      - name: Skip if no relevant production changes
+        if: steps.filter.outputs.relevant != 'true'
+        run: |
+          echo "No production infra changes — skipping plan."
+          exit 0
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ env.AWS_REGION }}
+
+      - name: Terraform Init
+        run: terraform init -input=false
+
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive
+        continue-on-error: true
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan
+        id: plan
+        run: |
+          terraform plan -no-color -input=false \
+            -var="jwt_secret=${{ secrets.TF_VAR_JWT_SECRET }}" \
+            -var="cookie_secret=${{ secrets.TF_VAR_COOKIE_SECRET }}" \
+            -var="google_client_id=${{ secrets.TF_VAR_GOOGLE_CLIENT_ID }}" \
+            -var="google_client_secret=${{ secrets.TF_VAR_GOOGLE_CLIENT_SECRET }}" \
+            -var="github_client_id=${{ secrets.TF_VAR_GITHUB_CLIENT_ID }}" \
+            -var="github_client_secret=${{ secrets.TF_VAR_GITHUB_CLIENT_SECRET }}" \
+            -out=tfplan 2>&1 | tee plan_output.txt
+          echo "exitcode=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
+
+      - name: Post Plan as PR Comment
+        uses: actions/github-script@v7
+        if: always()
+        with:
+          script: |
+            const fs = require('fs');
+            const plan = fs.readFileSync('infra/environments/production/plan_output.txt', 'utf8');
+            const MAX_LEN = 60000;
+            const truncated = plan.length > MAX_LEN
+              ? plan.substring(0, MAX_LEN) + '\n...[TRUNCATED]'
+              : plan;
+
+            const body = `## 🚀 Terraform Plan — **Production**
+
+            <details><summary>Show Plan</summary>
+
+            \`\`\`hcl
+            ${truncated}
+            \`\`\`
+            </details>
+
+            *Triggered by @${{ github.actor }} on \`${{ github.head_ref }}\`*`;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find(c => c.body.includes('Terraform Plan — **Production**'));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+
+      - name: Fail if plan errored
+        if: steps.plan.outputs.exitcode == '1'
+        run: exit 1

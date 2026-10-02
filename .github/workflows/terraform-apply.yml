@@ -1,0 +1,141 @@
+name: Terraform Apply
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Branch → Environment mapping:
+#   main  →  staging     (auto-apply after PR merge)
+#   prod  →  production  (auto-apply after PR merge from main → prod)
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  push:
+    branches: [main, prod]
+    paths:
+      - 'infra/**'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  TF_VERSION: "1.10.0"
+  AWS_REGION: "ap-south-1"
+
+jobs:
+  # ── Apply Staging (push to main) ───────────────────────────────────────────
+  apply-staging:
+    name: Apply — Staging
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    # Requires manual approval via GitHub Environment protection rule.
+    # Configure: Settings → Environments → terraform-staging → Required reviewers
+    environment: terraform-staging
+    defaults:
+      run:
+        working-directory: infra/environments/staging
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ env.AWS_REGION }}
+
+      - name: Terraform Init
+        run: terraform init -input=false
+
+      # Re-run plan so what you approve is exactly what gets applied
+      - name: Terraform Plan (drift check)
+        run: |
+          terraform plan -no-color -input=false \
+            -var="jwt_secret=${{ secrets.TF_VAR_JWT_SECRET }}" \
+            -var="cookie_secret=${{ secrets.TF_VAR_COOKIE_SECRET }}" \
+            -var="google_client_id=${{ secrets.TF_VAR_GOOGLE_CLIENT_ID }}" \
+            -var="google_client_secret=${{ secrets.TF_VAR_GOOGLE_CLIENT_SECRET }}" \
+            -var="github_client_id=${{ secrets.TF_VAR_GITHUB_CLIENT_ID }}" \
+            -var="github_client_secret=${{ secrets.TF_VAR_GITHUB_CLIENT_SECRET }}" \
+            -out=tfplan
+
+      - name: Terraform Apply
+        id: apply
+        run: terraform apply -auto-approve -input=false tfplan
+
+      - name: Post Apply Summary
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const status = '${{ steps.apply.outcome }}' === 'success' ? '✅' : '❌';
+            await github.rest.repos.createCommitComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              commit_sha: context.sha,
+              body: `${status} **Terraform Apply — Staging** completed with status: \`${{ steps.apply.outcome }}\`\nCommit: \`${{ github.sha }}\``,
+            });
+
+  # ── Apply Production (push to prod) ────────────────────────────────────────
+  apply-production:
+    name: Apply — Production
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/prod'
+    # Requires manual approval via GitHub Environment protection rule.
+    # Configure: Settings → Environments → terraform-production → Required reviewers
+    environment: terraform-production
+    defaults:
+      run:
+        working-directory: infra/environments/production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ env.AWS_REGION }}
+
+      - name: Terraform Init
+        run: terraform init -input=false
+
+      - name: Terraform Plan (drift check)
+        run: |
+          terraform plan -no-color -input=false \
+            -var="jwt_secret=${{ secrets.TF_VAR_JWT_SECRET }}" \
+            -var="cookie_secret=${{ secrets.TF_VAR_COOKIE_SECRET }}" \
+            -var="google_client_id=${{ secrets.TF_VAR_GOOGLE_CLIENT_ID }}" \
+            -var="google_client_secret=${{ secrets.TF_VAR_GOOGLE_CLIENT_SECRET }}" \
+            -var="github_client_id=${{ secrets.TF_VAR_GITHUB_CLIENT_ID }}" \
+            -var="github_client_secret=${{ secrets.TF_VAR_GITHUB_CLIENT_SECRET }}" \
+            -out=tfplan
+
+      - name: Terraform Apply
+        id: apply
+        run: terraform apply -auto-approve -input=false tfplan
+
+      - name: Post Apply Summary
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const status = '${{ steps.apply.outcome }}' === 'success' ? '✅' : '❌';
+            await github.rest.repos.createCommitComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              commit_sha: context.sha,
+              body: `${status} **Terraform Apply — Production** completed with status: \`${{ steps.apply.outcome }}\`\nCommit: \`${{ github.sha }}\``,
+            });

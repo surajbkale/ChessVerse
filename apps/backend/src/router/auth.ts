@@ -4,11 +4,24 @@ import jwt from 'jsonwebtoken';
 import { db } from '../db';
 import { v4 as uuidv4 } from 'uuid';
 import { COOKIE_MAX_AGE } from '../consts';
+
 const router = Router();
 
-const BASE_URL = process.env.ALLOWED_HOSTS || 'http://localhost:5173';
-const CLIENT_URL = process.env.AUTH_REDIRECT_URL ?? 'http://localhost:5173/game/random';
-const JWT_SECRET = process.env.JWT_SECRET || 'your_secret_key';
+// Read env vars lazily so they are always resolved after dotenv.config() runs
+function getConfig() {
+  const isProduction = process.env.NODE_ENV === 'production';
+  return {
+    CLIENT_URL: process.env.AUTH_REDIRECT_URL ?? 'https://chessverse.lumenvault.live/game/random',
+    FRONTEND_URL: process.env.FRONTEND_URL ?? 'https://chessverse.lumenvault.live',
+    JWT_SECRET: process.env.JWT_SECRET || 'your_secret_key',
+    cookieOptions: {
+      maxAge: COOKIE_MAX_AGE,
+      secure: isProduction,
+      sameSite: (isProduction ? 'none' : 'lax') as 'none' | 'lax',
+    },
+  };
+}
+
 
 interface userJwtClaims {
   userId: string;
@@ -23,37 +36,36 @@ interface UserDetails {
   isGuest?: boolean;
 }
 
-// this route is to be hit when the user wants to login as a guest
 router.post('/guest', async (req: Request, res: Response) => {
+  const { JWT_SECRET, cookieOptions } = getConfig();
   const bodyData = req.body;
   let guestUUID = 'guest-' + uuidv4();
 
   const user = await db.user.create({
     data: {
       username: guestUUID,
-      email: guestUUID + '@chess100x.com',
+      email: guestUUID + '@chessverse.live',
       name: bodyData.name || guestUUID,
       provider: 'GUEST',
     },
   });
 
-  const token = jwt.sign({ userId: user.id, name: user.name, isGuest: true }, JWT_SECRET);
+  const token = jwt.sign({ userId: user.id, name: user.name, isGuest: true }, JWT_SECRET, { expiresIn: '24h' });
   const UserDetails: UserDetails = {
     id: user.id,
     name: user.name!,
     token: token,
     isGuest: true,
   };
-  res.cookie('guest', token, { maxAge: COOKIE_MAX_AGE });
+
+  res.cookie('guest', token, cookieOptions);
   res.json(UserDetails);
 });
 
 router.get('/refresh', async (req: Request, res: Response) => {
+  const { JWT_SECRET, cookieOptions } = getConfig();
   if (req.user) {
     const user = req.user as UserDetails;
-
-    // Token is issued so it can be shared b/w HTTP and ws server
-    // Todo: Make this temporary and add refresh logic here
 
     const userDb = await db.user.findFirst({
       where: {
@@ -61,23 +73,35 @@ router.get('/refresh', async (req: Request, res: Response) => {
       },
     });
 
-    const token = jwt.sign({ userId: user.id, name: userDb?.name }, JWT_SECRET);
+    const token = jwt.sign({ userId: user.id, name: userDb?.name }, JWT_SECRET, { expiresIn: '7d' });
     res.json({
       token,
       id: user.id,
       name: userDb?.name,
     });
   } else if (req.cookies && req.cookies.guest) {
-    const decoded = jwt.verify(req.cookies.guest, JWT_SECRET) as userJwtClaims;
-    const token = jwt.sign({ userId: decoded.userId, name: decoded.name, isGuest: true }, JWT_SECRET);
-    let User: UserDetails = {
-      id: decoded.userId,
-      name: decoded.name,
-      token: token,
-      isGuest: true,
-    };
-    res.cookie('guest', token, { maxAge: COOKIE_MAX_AGE });
-    res.json(User);
+    try {
+      const decoded = jwt.verify(req.cookies.guest, JWT_SECRET) as userJwtClaims;
+      const token = jwt.sign(
+        { userId: decoded.userId, name: decoded.name, isGuest: true },
+        JWT_SECRET,
+        { expiresIn: '24h' }
+      );
+      const User: UserDetails = {
+        id: decoded.userId,
+        name: decoded.name,
+        token: token,
+        isGuest: true,
+      };
+      res.cookie('guest', token, cookieOptions);
+      res.json(User);
+    } catch (err) {
+      if ((err as Error).name === 'TokenExpiredError') {
+        res.clearCookie('guest');
+        return res.status(401).json({ success: false, message: 'Guest session expired. Please start a new guest session.' });
+      }
+      return res.status(401).json({ success: false, message: 'Invalid token.' });
+    }
   } else {
     res.status(401).json({ success: false, message: 'Unauthorized' });
   }
@@ -89,35 +113,63 @@ router.get('/login/failed', (req: Request, res: Response) => {
 
 router.get('/logout', (req: Request, res: Response) => {
   res.clearCookie('guest');
+  res.clearCookie('connect.sid');
+  res.clearCookie('jwt');
+
   req.logout((err) => {
     if (err) {
       console.error('Error logging out:', err);
-      res.status(500).json({ error: 'Failed to log out' });
-    } else {
-      res.clearCookie('jwt');
-      res.redirect(BASE_URL);
+      return res.status(500).json({ error: 'Failed to log out' });
     }
+    res.json({ success: true });
   });
 });
+
 
 router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 
 router.get(
   '/google/callback',
-  passport.authenticate('google', {
-    successRedirect: CLIENT_URL,
-    failureRedirect: '/login/failed',
-  })
+  (req: Request, res: Response, next) => {
+    const { CLIENT_URL, JWT_SECRET } = getConfig();
+    passport.authenticate('google', (err: any, user: any) => {
+      if (err || !user) return res.redirect('/auth/login/failed');
+      try {
+        const token = jwt.sign({ userId: user.id, name: user.name }, JWT_SECRET, { expiresIn: '7d' });
+        const url = new URL(CLIENT_URL);
+        url.searchParams.set('token', token);
+        url.searchParams.set('id', user.id);
+        url.searchParams.set('name', user.name ?? '');
+        res.redirect(url.toString());
+      } catch (e) {
+        console.error('Google callback redirect error:', e);
+        res.redirect('/auth/login/failed');
+      }
+    })(req, res, next);
+  }
 );
 
 router.get('/github', passport.authenticate('github', { scope: ['read:user', 'user:email'] }));
 
 router.get(
   '/github/callback',
-  passport.authenticate('github', {
-    successRedirect: CLIENT_URL,
-    failureRedirect: '/login/failed',
-  })
+  (req: Request, res: Response, next) => {
+    const { CLIENT_URL, JWT_SECRET } = getConfig();
+    passport.authenticate('github', (err: any, user: any) => {
+      if (err || !user) return res.redirect('/auth/login/failed');
+      try {
+        const token = jwt.sign({ userId: user.id, name: user.name }, JWT_SECRET, { expiresIn: '7d' });
+        const url = new URL(CLIENT_URL);
+        url.searchParams.set('token', token);
+        url.searchParams.set('id', user.id);
+        url.searchParams.set('name', user.name ?? '');
+        res.redirect(url.toString());
+      } catch (e) {
+        console.error('GitHub callback redirect error:', e);
+        res.redirect('/auth/login/failed');
+      }
+    })(req, res, next);
+  }
 );
 
 export default router;
